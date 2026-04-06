@@ -2,7 +2,7 @@
   "name": "GroceryRecipe",
   "short_name": "GroceryRecipe",
   "description": "Plan your meals, build your shopping list",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2e7d32",

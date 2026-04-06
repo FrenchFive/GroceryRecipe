@@ -751,9 +751,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderRecipes(e.target.value);
   });
 
-  // Register service worker
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  // Register service worker (skip inside Capacitor – assets are bundled in the APK)
+  if ('serviceWorker' in navigator && !window.Capacitor) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
   navigate('recipes');
