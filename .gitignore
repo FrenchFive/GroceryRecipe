@@ -1,0 +1,30 @@
+# Build artefacts
+dist/
+release/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Android / Capacitor build artefacts
+android/app/build/
+android/.gradle/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+*.apk
+*.aab
+local.properties
+
+# Environment
+.env
