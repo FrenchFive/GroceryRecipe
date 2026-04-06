@@ -28,7 +28,11 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((cached) => {
       if (cached) return cached;
-      return fetch(e.request).catch(() => caches.match('./index.html'));
+      return fetch(e.request).catch(() => {
+        // Only fall back to index.html for navigation requests (HTML pages)
+        if (e.request.mode === 'navigate') return caches.match('./index.html');
+        return new Response('', { status: 408, statusText: 'Offline' });
+      });
     })
   );
 });
