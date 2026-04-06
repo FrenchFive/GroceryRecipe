@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GroceryRecipe</string>
+    <string name="title_activity_main">GroceryRecipe</string>
+    <string name="package_name">com.groceryrecipe.app</string>
+    <string name="custom_url_scheme">com.groceryrecipe.app</string>
+</resources>

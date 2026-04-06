@@ -12,9 +12,19 @@ release/
 *.swp
 *.swo
 
-# Node (if someone adds a package.json later)
+# Node
 node_modules/
 npm-debug.log*
+package-lock.json
+
+# Android / Capacitor build artefacts
+android/app/build/
+android/.gradle/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+*.apk
+*.aab
+local.properties
 
 # Environment
 .env

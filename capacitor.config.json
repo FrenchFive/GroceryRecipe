@@ -1,0 +1,8 @@
+{
+  "appId": "com.groceryrecipe.app",
+  "appName": "GroceryRecipe",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
