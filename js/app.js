@@ -3,17 +3,28 @@
  */
 
 /* ── State ───────────────────────────────────────────────── */
-let currentPage       = 'recipes';
-let detailRecipeId    = null;   // recipe open in detail view
-let plannerWeekOffset = 0;      // 0 = current week, ±n = n weeks offset
-let shoppingView      = 'current'; // 'current' | 'next'
-let pickerCtx         = null;   // { wk, day, meal } for the meal picker
+let currentPage          = 'recipes';
+let detailRecipeId       = null;   // recipe open in detail view
+let plannerWeekOffset    = 0;      // 0 = current week, ±n = n weeks offset
+let plannerSelectedDayIdx = null;  // null = auto-select today/Mon, 0-6 = explicit selection
+let shoppingView         = 'current'; // 'current' | 'next'
+let pickerCtx            = null;   // { wk, day, meal } for the meal picker
 
 /* ── Planner week helpers ────────────────────────────────── */
 function getPlannerWk() {
   const d = new Date();
   d.setDate(d.getDate() + plannerWeekOffset * 7);
   return weekKey(d);
+}
+
+/** Return the effective selected day index (auto-pick today or Monday). */
+function getEffectiveSelIdx(nowDate) {
+  if (plannerSelectedDayIdx !== null) return plannerSelectedDayIdx;
+  if (plannerWeekOffset === 0) {
+    const dow = nowDate.getDay(); // 0 = Sunday
+    return dow === 0 ? 6 : dow - 1; // Mon=0 … Sun=6
+  }
+  return 0;
 }
 
 /* ── Routing ─────────────────────────────────────────────── */
@@ -494,39 +505,63 @@ function renderPlanner() {
   const mealIcons = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' };
   const page      = document.getElementById('page-planner');
 
-  function dayHtml(day, idx) {
-    const date    = dates[idx];
-    const isToday = date.getTime() === nowDate.getTime();
-    const dp      = plan[day] || { breakfast: null, lunch: null, dinner: null };
-
-    const mealRows = MEALS.map(meal => {
-      const rid    = dp[meal];
-      const recipe = rid ? RecipeDB.get(rid) : null;
-      const chip   = recipe
-        ? `<div class="cal-chip">
-             <span>${recipe.emoji || '🍽'} ${escHtml(recipe.name)}</span>
-             <button class="cal-chip-clear" data-wk="${wk}" data-day="${escHtml(day)}" data-meal="${meal}" aria-label="Clear">×</button>
-           </div>`
-        : `<span class="cal-meal-empty">Add meal</span>`;
-
-      return `<div class="cal-meal-row" data-wk="${wk}" data-day="${escHtml(day)}" data-meal="${meal}" role="button" tabindex="0">
-        <span class="cal-meal-icon">${mealIcons[meal]}</span>
-        <div class="cal-meal-content">${chip}</div>
-      </div>`;
-    }).join('');
-
-    return `<div class="cal-day${isToday ? ' today' : ''}">
-      <div class="cal-day-hd">
-        <span class="cal-day-name">${DAYS_SHORT[idx]}</span>
-        <span class="cal-day-num${isToday ? ' today' : ''}">${date.getDate()}</span>
-      </div>
-      <div class="cal-day-meals">${mealRows}</div>
-    </div>`;
-  }
+  const selIdx  = getEffectiveSelIdx(nowDate);
+  const selDay  = DAYS[selIdx];
+  const selDate = dates[selIdx];
+  const selPlan = plan[selDay] || { breakfast: null, lunch: null, dinner: null };
 
   const todayBtn = plannerWeekOffset !== 0
     ? `<button class="cal-today-btn" id="planner-today">Today</button>`
     : '';
+
+  /* ── Horizontal day strip ──── */
+  const stripHtml = DAYS.map((day, i) => {
+    const d       = dates[i];
+    const isToday = d.getTime() === nowDate.getTime();
+    const isSel   = i === selIdx;
+    return `<button class="cal-strip-day${isSel ? ' selected' : ''}${isToday ? ' today' : ''}"
+              data-idx="${i}" aria-label="${day} ${d.getDate()}" aria-pressed="${isSel}">
+      <span class="cal-strip-name">${DAYS_SHORT[i]}</span>
+      <span class="cal-strip-num">${d.getDate()}</span>
+      ${isToday && !isSel ? '<span class="cal-strip-dot" aria-hidden="true"></span>' : ''}
+    </button>`;
+  }).join('');
+
+  /* ── 3 meal cards for selected day ──── */
+  const mealCardsHtml = MEALS.map(meal => {
+    const rid    = selPlan[meal];
+    const recipe = rid ? RecipeDB.get(rid) : null;
+    const body   = recipe
+      ? `<div class="cal-card-recipe">
+           <span class="cal-card-emoji">${recipe.emoji || '🍽'}</span>
+           <div class="cal-card-info">
+             <span class="cal-card-name">${escHtml(recipe.name)}</span>
+             <span class="cal-card-meta">${recipe.ingredients.length} ingredients · serves ${recipe.servings}</span>
+           </div>
+           <span class="cal-card-arrow">›</span>
+         </div>`
+      : `<div class="cal-card-add">
+           <span class="cal-card-add-icon">+</span>
+           <span>Add ${meal}</span>
+         </div>`;
+
+    return `<div class="cal-meal-card">
+      <div class="cal-meal-card-hd">
+        <span class="cal-meal-card-icon">${mealIcons[meal]}</span>
+        <span class="cal-meal-card-label">${meal.charAt(0).toUpperCase() + meal.slice(1)}</span>
+        ${recipe ? `<button class="cal-chip-clear"
+                      data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
+                      aria-label="Clear ${meal}">×</button>` : ''}
+      </div>
+      <div class="cal-meal-card-body"
+           data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
+           role="button" tabindex="0" aria-label="${recipe ? `Change ${meal}: ${recipe.name}` : `Add ${meal}`}">
+        ${body}
+      </div>
+    </div>`;
+  }).join('');
+
+  const selHeading = `${selDay}, ${MONTHS_FULL[selDate.getMonth()]} ${selDate.getDate()}`;
 
   page.innerHTML = `
     <div class="cal-nav">
@@ -538,31 +573,57 @@ function renderPlanner() {
       <button class="cal-nav-btn" id="planner-next" aria-label="Next week">›</button>
     </div>
 
-    <div class="cal-actions">
-      <button class="btn btn-outline" id="btn-plan-to-shop" style="font-size:.8rem;padding:7px 12px;">
-        🛒 Add to shopping list
-      </button>
-      <button class="btn btn-outline" id="btn-clear-week" style="font-size:.8rem;padding:7px 12px;border-color:var(--red);color:var(--red);">
-        🗑 Clear week
-      </button>
+    <div class="cal-week-strip" role="tablist" aria-label="Day selector">
+      ${stripHtml}
     </div>
 
-    <div class="cal-days">
-      ${DAYS.map((day, i) => dayHtml(day, i)).join('')}
+    <div class="cal-day-detail">
+      <div class="cal-detail-heading">
+        <span class="cal-detail-date">${escHtml(selHeading)}</span>
+        <div class="cal-detail-actions">
+          <button class="btn btn-outline" id="btn-plan-to-shop"
+                  style="font-size:.75rem;padding:5px 10px;">🛒 Add week</button>
+          <button class="btn btn-outline" id="btn-clear-week"
+                  style="font-size:.75rem;padding:5px 10px;border-color:var(--red);color:var(--red);">🗑 Clear</button>
+        </div>
+      </div>
+      <div class="cal-meal-cards">
+        ${mealCardsHtml}
+      </div>
     </div>
   `;
 
   /* ── Week navigation ──── */
-  document.getElementById('planner-prev').addEventListener('click', () => { plannerWeekOffset--; renderPlanner(); });
-  document.getElementById('planner-next').addEventListener('click', () => { plannerWeekOffset++; renderPlanner(); });
+  document.getElementById('planner-prev').addEventListener('click', () => {
+    plannerWeekOffset--;
+    plannerSelectedDayIdx = null;
+    renderPlanner();
+  });
+  document.getElementById('planner-next').addEventListener('click', () => {
+    plannerWeekOffset++;
+    plannerSelectedDayIdx = null;
+    renderPlanner();
+  });
   const btnToday = document.getElementById('planner-today');
-  if (btnToday) btnToday.addEventListener('click', () => { plannerWeekOffset = 0; renderPlanner(); });
+  if (btnToday) btnToday.addEventListener('click', () => {
+    plannerWeekOffset = 0;
+    plannerSelectedDayIdx = null;
+    renderPlanner();
+  });
 
-  /* ── Meal row → open picker ──── */
-  page.querySelectorAll('.cal-meal-row').forEach(row => {
-    const open = () => openMealPicker(row.dataset.wk, row.dataset.day, row.dataset.meal);
-    row.addEventListener('click', e => { if (!e.target.closest('.cal-chip-clear')) open(); });
-    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  /* ── Day strip selection ──── */
+  page.querySelectorAll('.cal-strip-day').forEach(btn => {
+    btn.addEventListener('click', () => {
+      plannerSelectedDayIdx = parseInt(btn.dataset.idx, 10);
+      renderPlanner();
+    });
+  });
+
+  /* ── Meal card body → open picker ──── */
+  page.querySelectorAll('.cal-meal-card-body').forEach(el => {
+    const open = () => openMealPicker(el.dataset.wk, el.dataset.day, el.dataset.meal);
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
   });
 
   /* ── Chip clear (×) ──── */
