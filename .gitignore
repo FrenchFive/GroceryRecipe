@@ -1,0 +1,20 @@
+# Build artefacts
+dist/
+release/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node (if someone adds a package.json later)
+node_modules/
+npm-debug.log*
+
+# Environment
+.env

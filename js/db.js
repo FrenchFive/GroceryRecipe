@@ -4,15 +4,57 @@
  * Schemas:
  *   Recipe  { id, name, emoji, servings, ingredients:[{name,qty,unit}], steps:[string], createdAt }
  *   ShopItem{ id, name, qty, unit, checked, source, recipeId }
- *   Plan    { [day]: { breakfast: recipeId|null, lunch: recipeId|null, dinner: recipeId|null } }
+ *   Plan    { [weekKey]: { [day]: { breakfast, lunch, dinner } } }
+ *             weekKey = 'YYYY-MM-DD' of that week's Monday
  */
 
-const DB_RECIPES  = 'gr_recipes';
-const DB_SHOPPING = 'gr_shopping';
-const DB_PLAN     = 'gr_plan';
+const DB_RECIPES   = 'gr_recipes';
+const DB_SHOPPING  = 'gr_shopping';
+const DB_PLAN      = 'gr_plan';
 
-const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-const MEALS = ['breakfast','lunch','dinner'];
+const DAYS         = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const DAYS_SHORT   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const MEALS        = ['breakfast','lunch','dinner'];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/* ── Week utilities ──────────────────────────────────────── */
+
+/** Return a new Date set to midnight of the Monday for `date`. */
+function getMondayOfWeek(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay(); // 0 = Sunday
+  const diff = dow === 0 ? -6 : 1 - dow;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+/** 'YYYY-MM-DD' string for the Monday of the week containing `date`. */
+function weekKey(date) {
+  const m = getMondayOfWeek(date);
+  return `${m.getFullYear()}-${String(m.getMonth()+1).padStart(2,'0')}-${String(m.getDate()).padStart(2,'0')}`;
+}
+
+/** Array of 7 Date objects (Mon → Sun) for the week identified by `wk`. */
+function getWeekDates(wk) {
+  const [y, mo, dy] = wk.split('-').map(Number);
+  const mon = new Date(y, mo - 1, dy);
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(mon);
+    x.setDate(mon.getDate() + i);
+    return x;
+  });
+}
+
+/** Human-readable range like "Jun 9 – 15, 2026" or "Jun 30 – Jul 6, 2026". */
+function formatWeekRange(wk) {
+  const dates = getWeekDates(wk);
+  const s = dates[0], e = dates[6];
+  const sm = MONTHS_SHORT[s.getMonth()], em = MONTHS_SHORT[e.getMonth()];
+  return s.getMonth() === e.getMonth()
+    ? `${sm} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}`
+    : `${sm} ${s.getDate()} – ${em} ${e.getDate()}, ${e.getFullYear()}`;
+}
 
 /* ── helpers ────────────────────────────────────────────── */
 function load(key, fallback) {
@@ -98,22 +140,48 @@ const ShoppingDB = {
 
 /* ── Weekly planner ──────────────────────────────────────── */
 const PlanDB = {
-  _empty() {
-    const p = {};
-    DAYS.forEach(d => { p[d] = { breakfast: null, lunch: null, dinner: null }; });
-    return p;
+  /** Empty plan object for one week. */
+  _emptyWeek() {
+    const w = {};
+    DAYS.forEach(d => { w[d] = { breakfast: null, lunch: null, dinner: null }; });
+    return w;
   },
 
-  all() { return load(DB_PLAN, this._empty()); },
-
-  set(day, meal, recipeId) {
-    const plan = this.all();
-    if (!plan[day]) plan[day] = { breakfast: null, lunch: null, dinner: null };
-    plan[day][meal] = recipeId || null;
-    save(DB_PLAN, plan);
+  /**
+   * Detect the legacy format (top-level keys are day names) and migrate it
+   * to the new week-keyed format transparently.
+   */
+  _raw() {
+    const data = load(DB_PLAN, {});
+    if (data && DAYS.some(d => Object.prototype.hasOwnProperty.call(data, d))) {
+      const wk = weekKey(new Date());
+      const migrated = { [wk]: data };
+      save(DB_PLAN, migrated);
+      return migrated;
+    }
+    return data;
   },
 
-  clear() { save(DB_PLAN, this._empty()); }
+  /** Return the plan for a specific week (empty week if none stored). */
+  allForWeek(wk) {
+    return this._raw()[wk] || this._emptyWeek();
+  },
+
+  /** Set a single meal slot. */
+  set(wk, day, meal, recipeId) {
+    const raw = this._raw();
+    if (!raw[wk])      raw[wk]      = this._emptyWeek();
+    if (!raw[wk][day]) raw[wk][day] = { breakfast: null, lunch: null, dinner: null };
+    raw[wk][day][meal] = recipeId || null;
+    save(DB_PLAN, raw);
+  },
+
+  /** Remove all meals for the given week. */
+  clearWeek(wk) {
+    const raw = this._raw();
+    delete raw[wk];
+    save(DB_PLAN, raw);
+  }
 };
 
 /* ── Seed data ───────────────────────────────────────────── */
