@@ -39,6 +39,19 @@ function getEffectiveSelIdx(nowDate) {
 let navHistory = [];
 let handlingPopState = false;
 
+/* ── Capacitor plugin helpers ──────────────────────────────── */
+function getCapPlugin(name) {
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins[name])
+      return window.Capacitor.Plugins[name];
+  } catch (_) {}
+  return null;
+}
+
+function hapticTap()    { const h = getCapPlugin('Haptics'); if (h) h.impact({ style: 'LIGHT' }); }
+function hapticAction() { const h = getCapPlugin('Haptics'); if (h) h.impact({ style: 'MEDIUM' }); }
+function hapticHeavy()  { const h = getCapPlugin('Haptics'); if (h) h.notification({ type: 'WARNING' }); }
+
 /* ── Routing ─────────────────────────────────────────────── */
 function navigate(page) {
   // Track history for back navigation
@@ -111,9 +124,15 @@ function navigate(page) {
 }
 
 function goBack() {
-  if (currentPage === 'detail' || currentPage === 'edit') navigate('recipes');
-  else if (currentPage === 'add') navigate('recipes');
-  else navigate('recipes');
+  hapticTap();
+  const prev = navHistory.pop();
+  if (prev) {
+    handlingPopState = true;
+    navigate(prev);
+    handlingPopState = false;
+  } else {
+    navigate('recipes');
+  }
 }
 
 /* ── Recipe visual helper (photo or emoji) ──────────────── */
@@ -154,6 +173,7 @@ function renderRecipes(filter = '') {
 }
 
 function openDetail(id) {
+  hapticTap();
   detailRecipeId = id;
   navigate('detail');
 }
@@ -200,6 +220,7 @@ function renderDetail(id) {
 
     <!-- Actions -->
     <div class="flex-row mt-16" style="padding-bottom:24px;">
+      <button class="btn btn-outline" style="flex:1;" id="btn-share-recipe">${icon('share-2', 16)} Share</button>
       <button class="btn btn-outline" style="flex:1;" id="btn-edit-recipe">${icon('pencil', 16)} Edit</button>
       <button class="btn btn-danger"  style="flex:1;" id="btn-delete-recipe">${icon('trash-2', 16)} Delete</button>
     </div>
@@ -222,10 +243,25 @@ function renderDetail(id) {
   document.getElementById('qty-val').textContent = servings;
 
   document.getElementById('qty-minus').addEventListener('click', () => {
-    if (servings > 1) { servings--; document.getElementById('qty-val').textContent = servings; renderIngredients(); }
+    if (servings > 1) { hapticTap(); servings--; document.getElementById('qty-val').textContent = servings; renderIngredients(); }
   });
   document.getElementById('qty-plus').addEventListener('click', () => {
-    servings++; document.getElementById('qty-val').textContent = servings; renderIngredients();
+    hapticTap(); servings++; document.getElementById('qty-val').textContent = servings; renderIngredients();
+  });
+
+  document.getElementById('btn-share-recipe').addEventListener('click', () => {
+    hapticAction();
+    const ingText = r.ingredients.map(i => `  ${i.qty} ${i.unit} ${i.name}`).join('\n');
+    const stepsText = r.steps && r.steps.length ? '\n\nSteps:\n' + r.steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n') : '';
+    const text = `${r.name}\nServes ${r.servings}\n\nIngredients:\n${ingText}${stepsText}`;
+    const capShare = getCapPlugin('Share');
+    if (capShare) {
+      capShare.share({ title: r.name, text, dialogTitle: 'Share recipe' }).catch(() => {});
+    } else if (navigator.share) {
+      navigator.share({ title: r.name, text }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text).then(() => showToast('Recipe copied to clipboard')).catch(() => showToast('Could not share'));
+    }
   });
 
   document.getElementById('btn-edit-recipe').addEventListener('click', () => navigate('edit'));
@@ -234,6 +270,7 @@ function renderDetail(id) {
 
 function deleteRecipe(id) {
   if (!confirm('Delete this recipe?')) return;
+  hapticHeavy();
   RecipeDB.delete(id);
   showToast('Recipe deleted');
   navigate('recipes');
@@ -427,6 +464,7 @@ function renderAddForm(editId) {
 
     const saved = RecipeDB.save(recipe);
     detailRecipeId = saved.id;
+    hapticAction();
     showToast(r ? 'Recipe updated' : 'Recipe added');
     navigate('detail');
   });
@@ -1414,13 +1452,33 @@ document.addEventListener('DOMContentLoaded', () => {
   seedIfEmpty();
   applyTheme();
 
+  // ── Capacitor native UI setup ──────────────────────────
+  const capStatusBar  = getCapPlugin('StatusBar');
+  const capSplash     = getCapPlugin('SplashScreen');
+  const capKeyboard   = getCapPlugin('Keyboard');
+
+  if (capStatusBar) {
+    capStatusBar.setBackgroundColor({ color: '#1565c0' });
+    capStatusBar.setStyle({ style: 'DARK' });
+    capStatusBar.setOverlaysWebView({ overlay: false });
+  }
+
+  if (capSplash) {
+    capSplash.hide();
+  }
+
+  if (capKeyboard) {
+    capKeyboard.setScroll({ isDisabled: false });
+    capKeyboard.setAccessoryBarVisible({ isVisible: true });
+  }
+
   // Bottom nav
   document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => navigate(btn.dataset.page));
+    btn.addEventListener('click', () => { hapticTap(); navigate(btn.dataset.page); });
   });
 
   // Add recipe button in header
-  document.getElementById('btn-add-recipe').addEventListener('click', () => navigate('add'));
+  document.getElementById('btn-add-recipe').addEventListener('click', () => { hapticTap(); navigate('add'); });
 
   // Back button
   document.getElementById('back-btn').addEventListener('click', goBack);
