@@ -33,7 +33,8 @@ function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
-  const pageEl = document.getElementById('page-' + page);
+  const pageId = page === 'edit' ? 'page-add' : 'page-' + page;
+  const pageEl = document.getElementById(pageId);
   if (pageEl) pageEl.classList.add('active');
 
   const navBtn = document.querySelector(`.nav-btn[data-page="${page}"]`);
