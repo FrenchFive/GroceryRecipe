@@ -620,6 +620,32 @@ function renderPlanner() {
     });
   });
 
+  /* ── Swipe left/right to change day ──── */
+  (function() {
+    const detail = page.querySelector('.cal-day-detail');
+    let startX = 0, startY = 0;
+    detail.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+    detail.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+      const cur = getEffectiveSelIdx(nowDate);
+      if (dx < 0) {
+        // swipe left → next day
+        if (cur < 6) { plannerSelectedDayIdx = cur + 1; }
+        else { plannerWeekOffset++; plannerSelectedDayIdx = 0; }
+      } else {
+        // swipe right → previous day
+        if (cur > 0) { plannerSelectedDayIdx = cur - 1; }
+        else { plannerWeekOffset--; plannerSelectedDayIdx = 6; }
+      }
+      renderPlanner();
+    });
+  })();
+
   /* ── Meal card body → open picker ──── */
   page.querySelectorAll('.cal-meal-card-body').forEach(el => {
     const open = () => openMealPicker(el.dataset.wk, el.dataset.day, el.dataset.meal);
