@@ -797,20 +797,17 @@ function closeMealPicker() {
 
 /* ── Theme ──────────────────────────────────────────────── */
 function applyTheme() {
-  const dark  = PrefsDB.get('darkMode');
   const key   = PrefsDB.get('accentColor') || 'blue';
   const color = ACCENT_COLORS[key] || ACCENT_COLORS.blue;
   const root  = document.documentElement;
 
-  root.setAttribute('data-theme', dark ? 'dark' : 'light');
-
   // Apply accent color CSS variables
-  root.style.setProperty('--green',       dark ? color.darkMain  : color.main);
-  root.style.setProperty('--green-light', dark ? color.darkLight : color.light);
-  root.style.setProperty('--green-bg',    dark ? color.darkBg    : color.bg);
+  root.style.setProperty('--green',       color.main);
+  root.style.setProperty('--green-light', color.light);
+  root.style.setProperty('--green-bg',    color.bg);
 
   const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) metaTheme.content = dark ? '#1e1e1e' : color.main;
+  if (metaTheme) metaTheme.content = color.main;
 }
 
 /* ── Profile page ───────────────────────────────────────── */
@@ -850,16 +847,6 @@ function renderProfile() {
     <div class="settings-section">
       <div class="settings-section-title">Appearance</div>
       <div class="card">
-        <div class="setting-row">
-          <div class="setting-label">
-            <span class="setting-label-text">Dark Mode</span>
-            <span class="setting-label-desc">Easier on the eyes at night</span>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="pref-dark-mode" ${prefs.darkMode ? 'checked' : ''}>
-            <span class="toggle-track"></span>
-          </label>
-        </div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
           <div class="setting-label">
             <span class="setting-label-text">Accent Color</span>
@@ -916,12 +903,6 @@ function renderProfile() {
       Made with love for home cooks
     </div>
   `;
-
-  // Dark mode toggle
-  document.getElementById('pref-dark-mode').addEventListener('change', e => {
-    PrefsDB.set('darkMode', e.target.checked);
-    applyTheme();
-  });
 
   // Accent color picker
   document.querySelectorAll('#color-picker .color-swatch').forEach(btn => {

@@ -20,37 +20,6 @@
   --shadow-hover: 6px 6px 0 var(--border);
 }
 
-/* ── Dark mode ───────────────────────────────────────────── */
-[data-theme="dark"] {
-  --red: #ef5350;
-  --text: #e8e8e8;
-  --text-muted: #aaa;
-  --border: #e8e8e8;
-  --card-bg: #1e1e1e;
-  --body-bg: #121212;
-  --shadow: 4px 4px 0 var(--border);
-  --shadow-sm: 3px 3px 0 var(--border);
-  --shadow-hover: 6px 6px 0 var(--border);
-}
-
-[data-theme="dark"] .form-group input,
-[data-theme="dark"] .form-group textarea,
-[data-theme="dark"] .form-group select {
-  background: var(--body-bg);
-  color: var(--text);
-}
-
-[data-theme="dark"] .ingredient-row input {
-  background: var(--body-bg);
-  color: var(--text);
-}
-
-[data-theme="dark"] #toast {
-  background: #e8e8e8;
-  color: #121212;
-  border-color: #1a1a1a;
-}
-
 html, body {
   height: 100%;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -1160,46 +1129,6 @@ img.mpi-emoji {
   font-size: .75rem;
   color: var(--text-muted);
   font-weight: 600;
-}
-
-/* ── Toggle switch ──────────────────────────────────────── */
-.toggle {
-  position: relative;
-  width: 52px;
-  height: 28px;
-  flex-shrink: 0;
-}
-.toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.toggle-track {
-  position: absolute;
-  inset: 0;
-  background: var(--body-bg);
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background .2s;
-}
-.toggle-track::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  background: var(--text);
-  border-radius: var(--radius);
-  transition: transform .2s;
-}
-.toggle input:checked + .toggle-track {
-  background: var(--green);
-}
-.toggle input:checked + .toggle-track::after {
-  background: #fff;
-  transform: translateX(24px);
 }
 
 /* ── Select-style control for settings ──────────────────── */

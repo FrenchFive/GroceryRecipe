@@ -188,21 +188,20 @@ const PlanDB = {
 
 /* ── Accent color presets ────────────────────────────────── */
 const ACCENT_COLORS = {
-  green:  { label: 'Green',  main: '#2e7d32', light: '#43a047', bg: '#e8f5e9', darkMain: '#43a047', darkLight: '#66bb6a', darkBg: '#1b3a1e' },
-  teal:   { label: 'Teal',   main: '#00796b', light: '#00897b', bg: '#e0f2f1', darkMain: '#26a69a', darkLight: '#4db6ac', darkBg: '#0d2926' },
-  blue:   { label: 'Blue',   main: '#1565c0', light: '#1e88e5', bg: '#e3f2fd', darkMain: '#42a5f5', darkLight: '#64b5f6', darkBg: '#0d2137' },
-  indigo: { label: 'Indigo', main: '#283593', light: '#3949ab', bg: '#e8eaf6', darkMain: '#5c6bc0', darkLight: '#7986cb', darkBg: '#161b38' },
-  purple: { label: 'Purple', main: '#6a1b9a', light: '#8e24aa', bg: '#f3e5f5', darkMain: '#ab47bc', darkLight: '#ba68c8', darkBg: '#2a1035' },
-  pink:   { label: 'Pink',   main: '#c2185b', light: '#d81b60', bg: '#fce4ec', darkMain: '#ec407a', darkLight: '#f06292', darkBg: '#350d1e' },
-  red:    { label: 'Red',    main: '#c62828', light: '#e53935', bg: '#ffebee', darkMain: '#ef5350', darkLight: '#e57373', darkBg: '#350d0d' },
-  orange: { label: 'Orange', main: '#e65100', light: '#f4511e', bg: '#fbe9e7', darkMain: '#ff7043', darkLight: '#ff8a65', darkBg: '#351c0a' },
-  amber:  { label: 'Amber',  main: '#f57f17', light: '#f9a825', bg: '#fff8e1', darkMain: '#ffca28', darkLight: '#ffd54f', darkBg: '#352d05' },
-  brown:  { label: 'Brown',  main: '#4e342e', light: '#6d4c41', bg: '#efebe9', darkMain: '#8d6e63', darkLight: '#a1887f', darkBg: '#231715' },
+  green:  { label: 'Green',  main: '#2e7d32', light: '#43a047', bg: '#e8f5e9' },
+  teal:   { label: 'Teal',   main: '#00796b', light: '#00897b', bg: '#e0f2f1' },
+  blue:   { label: 'Blue',   main: '#1565c0', light: '#1e88e5', bg: '#e3f2fd' },
+  indigo: { label: 'Indigo', main: '#283593', light: '#3949ab', bg: '#e8eaf6' },
+  purple: { label: 'Purple', main: '#6a1b9a', light: '#8e24aa', bg: '#f3e5f5' },
+  pink:   { label: 'Pink',   main: '#c2185b', light: '#d81b60', bg: '#fce4ec' },
+  red:    { label: 'Red',    main: '#c62828', light: '#e53935', bg: '#ffebee' },
+  orange: { label: 'Orange', main: '#e65100', light: '#f4511e', bg: '#fbe9e7' },
+  amber:  { label: 'Amber',  main: '#f57f17', light: '#f9a825', bg: '#fff8e1' },
+  brown:  { label: 'Brown',  main: '#4e342e', light: '#6d4c41', bg: '#efebe9' },
 };
 
 /* ── User preferences ───────────────────────────────────── */
 const PREF_DEFAULTS = {
-  darkMode: false,
   defaultServings: 2,
   accentColor: 'blue'
 };
