@@ -347,7 +347,8 @@ const ACCENT_COLORS = {
 const PREF_DEFAULTS = {
   defaultServings: 2,
   accentColor: 'blue',
-  shoppingDay: 0           // 0=Monday … 6=Sunday (which day the shopping week starts)
+  shoppingDay: 0,          // 0=Monday … 6=Sunday (which day the shopping week starts)
+  shoppingReminder: false  // Send a notification on shopping day
 };
 
 const PrefsDB = {

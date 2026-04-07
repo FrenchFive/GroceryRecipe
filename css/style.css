@@ -1376,6 +1376,49 @@ img.mpi-emoji {
   box-shadow: 2px 2px 0 var(--border);
 }
 
+/* ── Toggle switch ──────────────────────────────────────── */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--body-bg);
+  border: 2px solid var(--border);
+  border-radius: 28px;
+  transition: background .2s;
+  box-shadow: 2px 2px 0 var(--border);
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  transition: transform .2s;
+}
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--green);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateY(-50%) translateX(19px);
+}
+
 /* ── Color picker swatches ───────────────────────────────── */
 .color-picker {
   display: flex;

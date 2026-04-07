@@ -1103,6 +1103,16 @@ function renderProfile() {
             ).join('')}
           </select>
         </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Shopping Reminder</span>
+            <span class="setting-label-desc">Get notified on shopping day</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="pref-shopping-reminder" ${prefs.shoppingReminder ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
           <div class="setting-label">
             <span class="setting-label-text">Accent Color</span>
@@ -1167,7 +1177,31 @@ function renderProfile() {
   document.getElementById('pref-shopping-day').addEventListener('change', e => {
     PrefsDB.set('shoppingDay', parseInt(e.target.value, 10));
     updateShoppingBadge();
+    scheduleShoppingReminder();
     showToast('Shopping day updated');
+  });
+
+  // Shopping reminder toggle
+  document.getElementById('pref-shopping-reminder').addEventListener('change', async e => {
+    if (e.target.checked) {
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        e.target.checked = false;
+        showToast('Notification permission denied');
+        return;
+      }
+      PrefsDB.set('shoppingReminder', true);
+      scheduleShoppingReminder();
+      showToast('Shopping reminder enabled');
+    } else {
+      PrefsDB.set('shoppingReminder', false);
+      // Cancel any scheduled Capacitor notification
+      const capLN = getCapLocalNotifications();
+      if (capLN) {
+        try { await capLN.cancel({ notifications: [{ id: 7777 }] }); } catch (e) {}
+      }
+      showToast('Shopping reminder disabled');
+    }
   });
 
   // Reset prefs
@@ -1228,6 +1262,153 @@ function escHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+/* ── Shopping day notification ───────────────────────────── */
+
+/** Get the Capacitor LocalNotifications plugin if available. */
+function getCapLocalNotifications() {
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+      return window.Capacitor.Plugins.LocalNotifications;
+    }
+  } catch (e) { /* not available */ }
+  return null;
+}
+
+/** Request notification permission (Capacitor or Web). */
+async function requestNotificationPermission() {
+  const capLN = getCapLocalNotifications();
+  if (capLN) {
+    const result = await capLN.requestPermissions();
+    return result.display === 'granted';
+  }
+  if ('Notification' in window) {
+    const result = await Notification.requestPermission();
+    return result === 'granted';
+  }
+  return false;
+}
+
+/** Check current notification permission. */
+async function hasNotificationPermission() {
+  const capLN = getCapLocalNotifications();
+  if (capLN) {
+    const result = await capLN.checkPermissions();
+    return result.display === 'granted';
+  }
+  if ('Notification' in window) {
+    return Notification.permission === 'granted';
+  }
+  return false;
+}
+
+/** Build the shopping summary text for the notification body. */
+function buildReminderBody() {
+  const now = new Date();
+  const swk = shopWeekKey(now);
+  const recipeItems = ingredientsForShopWeek(swk);
+  const checkedKey = `shop_checked_${swk}`;
+  const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
+  const uncheckedRecipe = recipeItems.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit)).length;
+  const recurringCheckedKey = `shop_recurring_checked_${swk}`;
+  const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
+  const uncheckedRecurring = RecurringDB.all().filter(i => !recurringCheckedSet.has(i.id)).length;
+  const uncheckedCustom = CustomItemsDB.count();
+  const total = uncheckedRecipe + uncheckedRecurring + uncheckedCustom;
+  return total > 0
+    ? `You have ${total} item${total !== 1 ? 's' : ''} on your shopping list.`
+    : 'Your shopping list is empty — plan some meals!';
+}
+
+/**
+ * Schedule a Capacitor local notification for next shopping day at 9:00 AM.
+ * Cancels any previous shopping reminder first.
+ */
+async function scheduleCapacitorReminder() {
+  const capLN = getCapLocalNotifications();
+  if (!capLN) return;
+  const prefs = PrefsDB.all();
+
+  // Cancel existing shopping reminder
+  try {
+    await capLN.cancel({ notifications: [{ id: 7777 }] });
+  } catch (e) { /* ignore if none scheduled */ }
+
+  if (!prefs.shoppingReminder) return;
+
+  // Calculate next shopping day at 9 AM
+  const now = new Date();
+  const dow = now.getDay();
+  const ourIdx = dow === 0 ? 6 : dow - 1;
+  const targetIdx = prefs.shoppingDay || 0;
+  let daysUntil = targetIdx - ourIdx;
+  if (daysUntil < 0) daysUntil += 7;
+  if (daysUntil === 0) {
+    // If today is shopping day but past 9 AM, schedule for next week
+    if (now.getHours() >= 9) daysUntil = 7;
+  }
+
+  const schedDate = new Date(now);
+  schedDate.setDate(schedDate.getDate() + daysUntil);
+  schedDate.setHours(9, 0, 0, 0);
+
+  await capLN.schedule({
+    notifications: [{
+      id: 7777,
+      title: 'Shopping Day!',
+      body: buildReminderBody(),
+      schedule: {
+        at: schedDate,
+        every: 'week',
+        allowWhileIdle: true
+      },
+      smallIcon: 'ic_stat_shopping_cart',
+      largeIcon: 'ic_launcher',
+      autoCancel: true
+    }]
+  });
+}
+
+/**
+ * Web fallback: check on each app open if today is shopping day.
+ * Shows a web notification once per day.
+ */
+function checkWebShoppingReminder() {
+  const prefs = PrefsDB.all();
+  if (!prefs.shoppingReminder) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const now = new Date();
+  const dow = now.getDay();
+  const ourIdx = dow === 0 ? 6 : dow - 1;
+  if (ourIdx !== (prefs.shoppingDay || 0)) return;
+
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  if (localStorage.getItem('gr_last_shop_notify') === todayStr) return;
+
+  localStorage.setItem('gr_last_shop_notify', todayStr);
+  const body = buildReminderBody();
+
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.ready.then(reg => {
+      reg.showNotification('Shopping Day!', {
+        body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'shopping-reminder'
+      });
+    });
+  } else {
+    new Notification('Shopping Day!', { body, icon: 'icons/icon-192.png', tag: 'shopping-reminder' });
+  }
+}
+
+/** Entry point: schedule Capacitor notification or set up web check. */
+function scheduleShoppingReminder() {
+  const capLN = getCapLocalNotifications();
+  if (capLN) {
+    scheduleCapacitorReminder();
+  } else {
+    checkWebShoppingReminder();
+  }
+}
+
 /* ── Boot ────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   seedIfEmpty();
@@ -1279,4 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const todayDayPlan = todayPlan[todayDayName] || {};
   const todayHasMeals = MEALS.some(m => (todayDayPlan[m] || []).length > 0);
   navigate(todayHasMeals ? 'planner' : 'recipes');
+
+  // Start shopping day reminder checks
+  scheduleShoppingReminder();
 });
