@@ -181,9 +181,6 @@ function renderDetail(id) {
           <button id="qty-plus"  aria-label="Increase">${icon('plus', 16)}</button>
         </div>
       </div>
-      <button class="btn btn-primary btn-full" id="btn-add-to-shop">
-        ${icon('shopping-cart', 18)} Add to Shopping List
-      </button>
     </div>
 
     <!-- Ingredients -->
@@ -229,13 +226,6 @@ function renderDetail(id) {
   });
   document.getElementById('qty-plus').addEventListener('click', () => {
     servings++; document.getElementById('qty-val').textContent = servings; renderIngredients();
-  });
-
-  document.getElementById('btn-add-to-shop').addEventListener('click', () => {
-    const mult = servings / r.servings;
-    ShoppingDB.addFromRecipe(r, mult);
-    updateShoppingBadge();
-    showToast(`${r.name} added to shopping list`);
   });
 
   document.getElementById('btn-edit-recipe').addEventListener('click', () => navigate('edit'));
@@ -443,18 +433,45 @@ function renderAddForm(editId) {
 }
 
 /* ── Shopping page ───────────────────────────────────────── */
+
+/** Compute merged ingredient list from a week's plan. */
+function ingredientsForWeek(wk) {
+  const plan = PlanDB.allForWeek(wk);
+  const ingMap = {};
+  DAYS.forEach(day => {
+    MEALS.forEach(meal => {
+      const rids = plan[day]?.[meal] || [];
+      rids.forEach(rid => {
+        const recipe = RecipeDB.get(rid);
+        if (!recipe) return;
+        recipe.ingredients.forEach(ing => {
+          const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
+          if (ingMap[k]) {
+            const prev = parseFloat(ingMap[k].qty), add = parseFloat(ing.qty);
+            if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
+            if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
+          } else {
+            ingMap[k] = { name: ing.name, qty: ing.qty, unit: ing.unit, sources: [recipe.name] };
+          }
+        });
+      });
+    });
+  });
+  return Object.values(ingMap);
+}
+
 function renderShopping() {
-  const page   = document.getElementById('page-shopping');
-  const tabs   = `
+  const page = document.getElementById('page-shopping');
+  const tabs = `
     <div class="shop-tabs">
-      <button class="shop-tab${shoppingView === 'current' ? ' active' : ''}" data-view="current">${icon('shopping-cart', 16)} Current List</button>
-      <button class="shop-tab${shoppingView === 'next'    ? ' active' : ''}" data-view="next">${icon('calendar-days', 16)} Next Week</button>
+      <button class="shop-tab${shoppingView === 'current' ? ' active' : ''}" data-view="current">${icon('calendar-days', 16)} This Week</button>
+      <button class="shop-tab${shoppingView === 'next'    ? ' active' : ''}" data-view="next">${icon('calendar-range', 16)} Next Week</button>
     </div>`;
 
   if (shoppingView === 'next') {
-    renderShoppingNextWeek(page, tabs);
+    renderShoppingWeek(page, tabs, 1);
   } else {
-    renderShoppingCurrent(page, tabs);
+    renderShoppingWeek(page, tabs, 0);
   }
 
   page.querySelectorAll('.shop-tab').forEach(tab => {
@@ -463,36 +480,43 @@ function renderShopping() {
   refreshIcons();
 }
 
-function renderShoppingCurrent(page, tabs) {
-  const items     = ShoppingDB.all();
-  const unchecked = items.filter(i => !i.checked);
-  const checked   = items.filter(i =>  i.checked);
+function renderShoppingWeek(page, tabs, weekOffset) {
+  const d = new Date();
+  d.setDate(d.getDate() + weekOffset * 7);
+  const wk    = weekKey(d);
+  const label = formatWeekRange(wk);
+  const items = ingredientsForWeek(wk);
 
-  function itemHtml(i) {
-    return `<div class="shop-item${i.checked ? ' checked' : ''}" data-id="${i.id}">
-      <input type="checkbox" id="chk-${i.id}" ${i.checked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
-      <label for="chk-${i.id}">
-        ${escHtml(i.name)}
-        <span class="shop-source">from ${escHtml(i.source)}</span>
-      </label>
-      <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
-      <button class="shop-remove" data-id="${i.id}" aria-label="Remove">${icon('x', 14)}</button>
-    </div>`;
-  }
+  // Load checked state from ShoppingDB (keyed by week)
+  const checkedKey = `shop_checked_${wk}`;
+  const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
 
   let body;
   if (items.length === 0) {
     body = `<div class="empty-state">
       <div class="empty-icon">${icon('shopping-cart', 48)}</div>
-      <p>Your shopping list is empty.<br>Add ingredients from a recipe!</p>
+      <p>No meals planned${weekOffset === 0 ? ' this' : ' next'} week.<br>Go to the Planner to add some!</p>
     </div>`;
   } else {
-    const actions = `
-      <div class="flex-row" style="margin-bottom:14px;justify-content:flex-end;">
-        ${checked.length ? `<button class="btn btn-outline" id="btn-clear-checked" style="font-size:.85rem;padding:8px 14px;">${icon('check', 14)} Remove checked</button>` : ''}
-        <button class="btn btn-danger" id="btn-clear-all" style="font-size:.85rem;padding:8px 14px;">${icon('trash-2', 14)} Clear all</button>
+    const unchecked = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+    const checked   = items.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+
+    function itemHtml(i) {
+      const key = i.name.toLowerCase() + '\u0000' + i.unit;
+      const isChecked = checkedSet.has(key);
+      const safeKey = btoa(encodeURIComponent(key));
+      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-key="${safeKey}">
+        <input type="checkbox" id="chk-${safeKey}" ${isChecked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
+        <label for="chk-${safeKey}">
+          ${escHtml(i.name)}
+          <span class="shop-source">${i.sources.map(escHtml).join(', ')}</span>
+        </label>
+        <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
       </div>`;
-    body = actions + `
+    }
+
+    const weekLabel = `<div class="shop-week-label">${icon('calendar-days', 14)} ${escHtml(label)}</div>`;
+    body = weekLabel + `
       <div class="card" id="shop-list">
         ${unchecked.map(itemHtml).join('')}
         ${checked.length && unchecked.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
@@ -502,116 +526,17 @@ function renderShoppingCurrent(page, tabs) {
 
   page.innerHTML = tabs + body;
 
+  // Toggle checked state
   page.querySelectorAll('.shop-item input[type=checkbox]').forEach(chk => {
     chk.addEventListener('change', () => {
-      ShoppingDB.toggle(chk.closest('.shop-item').dataset.id);
-      updateShoppingBadge();
+      const safeKey = chk.closest('.shop-item').dataset.key;
+      const key = decodeURIComponent(atob(safeKey));
+      if (chk.checked) checkedSet.add(key);
+      else checkedSet.delete(key);
+      localStorage.setItem(checkedKey, JSON.stringify([...checkedSet]));
       renderShopping();
     });
   });
-
-  page.querySelectorAll('.shop-remove').forEach(btn => {
-    btn.addEventListener('click', () => {
-      ShoppingDB.remove(btn.dataset.id);
-      updateShoppingBadge();
-      renderShopping();
-    });
-  });
-
-  const btnCA = document.getElementById('btn-clear-all');
-  if (btnCA) {
-    btnCA.addEventListener('click', () => {
-      if (confirm('Clear the entire shopping list?')) {
-        ShoppingDB.clearAll();
-        updateShoppingBadge();
-        renderShopping();
-      }
-    });
-  }
-
-  const btnCC = document.getElementById('btn-clear-checked');
-  if (btnCC) {
-    btnCC.addEventListener('click', () => {
-      ShoppingDB.clearChecked();
-      updateShoppingBadge();
-      renderShopping();
-    });
-  }
-}
-
-function renderShoppingNextWeek(page, tabs) {
-  const d = new Date();
-  d.setDate(d.getDate() + 7);
-  const nwk   = weekKey(d);
-  const plan  = PlanDB.allForWeek(nwk);
-  const dates = getWeekDates(nwk);
-  const label = formatWeekRange(nwk);
-
-  // Collect meals planned for next week
-  const meals = [];
-  DAYS.forEach((day, idx) => {
-    MEALS.forEach(meal => {
-      const rid = plan[day]?.[meal];
-      if (rid) {
-        const recipe = RecipeDB.get(rid);
-        if (recipe) meals.push({ recipe, day, meal, date: dates[idx] });
-      }
-    });
-  });
-
-  let body;
-  if (meals.length === 0) {
-    body = `<div class="empty-state">
-      <div class="empty-icon">${icon('calendar-days', 48)}</div>
-      <p>No meals planned for next week.<br>Go to the Planner to schedule some!</p>
-    </div>`;
-  } else {
-    // Merge ingredients across all planned recipes
-    const ingMap = {};
-    meals.forEach(({ recipe }) => {
-      recipe.ingredients.forEach(ing => {
-        const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
-        if (ingMap[k]) {
-          const prev = parseFloat(ingMap[k].qty), add = parseFloat(ing.qty);
-          if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
-          if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
-        } else {
-          ingMap[k] = { name: ing.name, qty: ing.qty, unit: ing.unit, sources: [recipe.name] };
-        }
-      });
-    });
-    const ingList = Object.values(ingMap);
-
-    body = `
-      <div class="next-week-header">
-        <span>${icon('calendar-days', 16)} ${escHtml(label)}</span>
-        <button class="btn btn-primary" id="btn-add-next-week" style="font-size:.8rem;padding:8px 14px;">
-          ${icon('shopping-cart', 14)} Add to shopping list
-        </button>
-      </div>
-      <div class="card">
-        ${ingList.map(i => `
-          <div class="shop-item-preview">
-            <span class="shop-item-preview-name">${escHtml(i.name)}</span>
-            <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
-          </div>
-          <span class="shop-source" style="padding:0 0 8px;display:block;">${i.sources.map(escHtml).join(', ')}</span>
-        `).join('')}
-      </div>`;
-  }
-
-  page.innerHTML = tabs + body;
-
-  const btnANW = document.getElementById('btn-add-next-week');
-  if (btnANW) {
-    btnANW.addEventListener('click', () => {
-      meals.forEach(({ recipe }) => ShoppingDB.addFromRecipe(recipe, 1));
-      updateShoppingBadge();
-      shoppingView = 'current';
-      renderShopping();
-      showToast(`Next week's groceries added to shopping list`);
-    });
-  }
 }
 
 /* ── Planner page ────────────────────────────────────────── */
@@ -627,7 +552,7 @@ function renderPlanner() {
   const selIdx  = getEffectiveSelIdx(nowDate);
   const selDay  = DAYS[selIdx];
   const selDate = dates[selIdx];
-  const selPlan = plan[selDay] || { breakfast: null, lunch: null, dinner: null };
+  const selPlan = plan[selDay] || { breakfast: [], lunch: [], dinner: [] };
 
   const todayBtn = plannerWeekOffset !== 0
     ? `<button class="cal-today-btn" id="planner-today">Today</button>`
@@ -648,34 +573,40 @@ function renderPlanner() {
 
   /* ── 3 meal cards for selected day ──── */
   const mealCardsHtml = MEALS.map(meal => {
-    const rid    = selPlan[meal];
-    const recipe = rid ? RecipeDB.get(rid) : null;
-    const body   = recipe
-      ? `<div class="cal-card-recipe">
-           ${recipeVisual(recipe, 'cal-card-emoji')}
-           <div class="cal-card-info">
-             <span class="cal-card-name">${escHtml(recipe.name)}</span>
-             <span class="cal-card-meta">${recipe.ingredients.length} ingredients · serves ${recipe.servings}</span>
-           </div>
-           <span class="cal-card-arrow">${icon('chevron-right', 16)}</span>
-         </div>`
-      : `<div class="cal-card-add">
-           <span class="cal-card-add-icon">${icon('plus', 20)}</span>
-           <span>Add ${meal}</span>
-         </div>`;
+    const rids    = selPlan[meal] || [];
+    const recipes = rids.map(id => RecipeDB.get(id)).filter(Boolean);
+    const hasRecipes = recipes.length > 0;
+
+    const recipesHtml = recipes.map(recipe => `
+      <div class="cal-card-recipe">
+        ${recipeVisual(recipe, 'cal-card-emoji')}
+        <div class="cal-card-info">
+          <span class="cal-card-name">${escHtml(recipe.name)}</span>
+          <span class="cal-card-meta">${recipe.ingredients.length} ing · serves ${recipe.servings}</span>
+        </div>
+        <button class="cal-recipe-remove" data-wk="${wk}" data-day="${escHtml(selDay)}"
+                data-meal="${meal}" data-rid="${recipe.id}"
+                aria-label="Remove ${recipe.name}">${icon('x', 14)}</button>
+      </div>
+    `).join('');
+
+    const addBtn = `<div class="cal-card-add cal-card-add-more" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
+                         role="button" tabindex="0">
+      <span class="cal-card-add-icon">${icon('plus', 18)}</span>
+      <span>${hasRecipes ? 'Add another' : `Add ${meal}`}</span>
+    </div>`;
 
     return `<div class="cal-meal-card">
       <div class="cal-meal-card-hd">
         <span class="cal-meal-card-icon">${mealIcons[meal]}</span>
         <span class="cal-meal-card-label">${meal.charAt(0).toUpperCase() + meal.slice(1)}</span>
-        ${recipe ? `<button class="cal-chip-clear"
-                      data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
-                      aria-label="Clear ${meal}">${icon('x', 14)}</button>` : ''}
+        ${hasRecipes ? `<button class="cal-chip-clear"
+                          data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
+                          aria-label="Clear all ${meal}">${icon('x', 14)}</button>` : ''}
       </div>
-      <div class="cal-meal-card-body"
-           data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
-           role="button" tabindex="0" aria-label="${recipe ? `Change ${meal}: ${recipe.name}` : `Add ${meal}`}">
-        ${body}
+      <div class="cal-meal-card-body">
+        ${recipesHtml}
+        ${addBtn}
       </div>
     </div>`;
   }).join('');
@@ -700,10 +631,8 @@ function renderPlanner() {
       <div class="cal-detail-heading">
         <span class="cal-detail-date">${escHtml(selHeading)}</span>
         <div class="cal-detail-actions">
-          <button class="btn btn-outline" id="btn-plan-to-shop"
-                  style="font-size:.75rem;padding:5px 10px;">${icon('shopping-cart', 14)} Add week</button>
           <button class="btn btn-outline" id="btn-clear-week"
-                  style="font-size:.75rem;padding:5px 10px;border-color:var(--red);color:var(--red);">${icon('trash-2', 14)} Clear</button>
+                  style="font-size:.75rem;padding:5px 10px;border-color:var(--red);color:var(--red);">${icon('trash-2', 14)} Clear week</button>
         </div>
       </div>
       <div class="cal-meal-cards">
@@ -738,33 +667,29 @@ function renderPlanner() {
     });
   });
 
-  /* ── Meal card body → open picker ──── */
-  page.querySelectorAll('.cal-meal-card-body').forEach(el => {
+  /* ── Add button → open picker ──── */
+  page.querySelectorAll('.cal-card-add-more').forEach(el => {
     const open = () => openMealPicker(el.dataset.wk, el.dataset.day, el.dataset.meal);
     el.addEventListener('click', open);
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
   });
 
-  /* ── Chip clear (×) ──── */
-  page.querySelectorAll('.cal-chip-clear').forEach(btn => {
+  /* ── Remove single recipe from meal ──── */
+  page.querySelectorAll('.cal-recipe-remove').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      PlanDB.set(btn.dataset.wk, btn.dataset.day, btn.dataset.meal, null);
+      PlanDB.remove(btn.dataset.wk, btn.dataset.day, btn.dataset.meal, btn.dataset.rid);
       renderPlanner();
     });
   });
 
-  /* ── Add week to shopping ──── */
-  document.getElementById('btn-plan-to-shop').addEventListener('click', () => {
-    let count = 0;
-    DAYS.forEach(day => {
-      MEALS.forEach(meal => {
-        const rid = plan[day]?.[meal];
-        if (rid) { const r = RecipeDB.get(rid); if (r) { ShoppingDB.addFromRecipe(r, 1); count++; } }
-      });
+  /* ── Clear all recipes from meal ──── */
+  page.querySelectorAll('.cal-chip-clear').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      PlanDB.clearMeal(btn.dataset.wk, btn.dataset.day, btn.dataset.meal);
+      renderPlanner();
     });
-    updateShoppingBadge();
-    showToast(count > 0 ? `${count} meal(s) added to shopping list` : 'No meals planned yet');
   });
 
   /* ── Clear week ──── */
@@ -785,10 +710,6 @@ function openMealPicker(wk, day, meal) {
   const recipes = RecipeDB.all();
   const list    = document.getElementById('meal-picker-list');
   list.innerHTML = `
-    <button class="meal-picker-item meal-picker-clear" data-id="">
-      <span class="mpi-emoji">${icon('x', 18)}</span>
-      <span class="mpi-name">None (clear)</span>
-    </button>
     ${recipes.map(r => `
       <button class="meal-picker-item" data-id="${r.id}">
         ${recipeVisual(r, 'mpi-emoji')}
@@ -799,7 +720,7 @@ function openMealPicker(wk, day, meal) {
 
   list.querySelectorAll('.meal-picker-item').forEach(btn => {
     btn.addEventListener('click', () => {
-      PlanDB.set(pickerCtx.wk, pickerCtx.day, pickerCtx.meal, btn.dataset.id || null);
+      PlanDB.add(pickerCtx.wk, pickerCtx.day, pickerCtx.meal, btn.dataset.id);
       closeMealPicker();
       renderPlanner();
     });
@@ -837,7 +758,7 @@ function renderProfile() {
   const page  = document.getElementById('page-profile');
   const prefs = PrefsDB.all();
   const recipeCount = RecipeDB.all().length;
-  const shopCount   = ShoppingDB.count();
+  const shopCount   = ingredientsForWeek(weekKey(new Date())).length;
 
   page.innerHTML = `
     <div class="profile-header">
@@ -944,7 +865,11 @@ function renderProfile() {
 
 /* ── Badge ───────────────────────────────────────────────── */
 function updateShoppingBadge() {
-  const n = ShoppingDB.count();
+  const wk = weekKey(new Date());
+  const items = ingredientsForWeek(wk);
+  const checkedKey = `shop_checked_${wk}`;
+  const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
+  const n = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit)).length;
   let badge = document.getElementById('shop-badge');
   if (!badge) {
     const btn = document.querySelector('.nav-btn[data-page="shopping"]');

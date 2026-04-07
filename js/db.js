@@ -4,7 +4,7 @@
  * Schemas:
  *   Recipe  { id, name, emoji, photo, servings, ingredients:[{name,qty,unit}], steps:[string], createdAt }
  *   ShopItem{ id, name, qty, unit, checked, source, recipeId }
- *   Plan    { [weekKey]: { [day]: { breakfast, lunch, dinner } } }
+ *   Plan    { [weekKey]: { [day]: { breakfast:[id], lunch:[id], dinner:[id] } } }
  *             weekKey = 'YYYY-MM-DD' of that week's Monday
  */
 
@@ -142,39 +142,87 @@ const ShoppingDB = {
 
 /* ── Weekly planner ──────────────────────────────────────── */
 const PlanDB = {
-  /** Empty plan object for one week. */
+  /** Empty plan object for one week – each meal is an array of recipe IDs. */
   _emptyWeek() {
     const w = {};
-    DAYS.forEach(d => { w[d] = { breakfast: null, lunch: null, dinner: null }; });
+    DAYS.forEach(d => { w[d] = { breakfast: [], lunch: [], dinner: [] }; });
     return w;
   },
 
+  /** Ensure a meal value is always an array (migrate from old single-ID format). */
+  _norm(val) {
+    if (Array.isArray(val)) return val.filter(Boolean);
+    return val ? [val] : [];
+  },
+
   /**
-   * Detect the legacy format (top-level keys are day names) and migrate it
-   * to the new week-keyed format transparently.
+   * Load raw data, migrating legacy formats:
+   * 1. Top-level day keys → week-keyed format
+   * 2. Single recipeId per meal → array of recipeIds
    */
   _raw() {
-    const data = load(DB_PLAN, {});
+    let data = load(DB_PLAN, {});
+    // Legacy: top-level day keys
     if (data && DAYS.some(d => Object.prototype.hasOwnProperty.call(data, d))) {
       const wk = weekKey(new Date());
-      const migrated = { [wk]: data };
-      save(DB_PLAN, migrated);
-      return migrated;
+      data = { [wk]: data };
+      save(DB_PLAN, data);
     }
+    // Migrate single-ID values to arrays
+    let migrated = false;
+    for (const wk in data) {
+      for (const day of DAYS) {
+        if (!data[wk][day]) continue;
+        for (const meal of MEALS) {
+          const v = data[wk][day][meal];
+          if (v !== undefined && !Array.isArray(v)) {
+            data[wk][day][meal] = v ? [v] : [];
+            migrated = true;
+          }
+        }
+      }
+    }
+    if (migrated) save(DB_PLAN, data);
     return data;
   },
 
-  /** Return the plan for a specific week (empty week if none stored). */
+  /** Return the plan for a specific week (normalised – arrays). */
   allForWeek(wk) {
-    return this._raw()[wk] || this._emptyWeek();
+    const week = this._raw()[wk] || this._emptyWeek();
+    // Ensure every meal slot is an array
+    DAYS.forEach(d => {
+      if (!week[d]) week[d] = { breakfast: [], lunch: [], dinner: [] };
+      MEALS.forEach(m => { week[d][m] = this._norm(week[d][m]); });
+    });
+    return week;
   },
 
-  /** Set a single meal slot. */
-  set(wk, day, meal, recipeId) {
+  /** Add a recipe to a meal slot. */
+  add(wk, day, meal, recipeId) {
+    if (!recipeId) return;
     const raw = this._raw();
     if (!raw[wk])      raw[wk]      = this._emptyWeek();
-    if (!raw[wk][day]) raw[wk][day] = { breakfast: null, lunch: null, dinner: null };
-    raw[wk][day][meal] = recipeId || null;
+    if (!raw[wk][day]) raw[wk][day] = { breakfast: [], lunch: [], dinner: [] };
+    const arr = this._norm(raw[wk][day][meal]);
+    if (!arr.includes(recipeId)) arr.push(recipeId);
+    raw[wk][day][meal] = arr;
+    save(DB_PLAN, raw);
+  },
+
+  /** Remove a specific recipe from a meal slot. */
+  remove(wk, day, meal, recipeId) {
+    const raw = this._raw();
+    if (!raw[wk]?.[day]) return;
+    const arr = this._norm(raw[wk][day][meal]);
+    raw[wk][day][meal] = arr.filter(id => id !== recipeId);
+    save(DB_PLAN, raw);
+  },
+
+  /** Clear all recipes from a meal slot. */
+  clearMeal(wk, day, meal) {
+    const raw = this._raw();
+    if (!raw[wk]?.[day]) return;
+    raw[wk][day][meal] = [];
     save(DB_PLAN, raw);
   },
 

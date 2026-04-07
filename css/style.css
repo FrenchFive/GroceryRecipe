@@ -104,6 +104,7 @@ html, body {
   position: absolute;
   inset: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px;
   display: none;
 }
@@ -150,6 +151,7 @@ html, body {
   box-shadow: var(--shadow);
   padding: 14px 16px;
   margin-bottom: 14px;
+  overflow: hidden;
 }
 
 /* ── Search bar ──────────────────────────────────────────── */
@@ -393,6 +395,7 @@ img.emoji.recipe-photo {
 .form-group textarea,
 .form-group select {
   width: 100%;
+  min-width: 0;
   padding: 10px 14px;
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius);
@@ -473,26 +476,27 @@ img.emoji.recipe-photo {
 
 .ingredient-row {
   display: grid;
-  grid-template-columns: 1fr 80px 70px 32px;
-  gap: 8px;
+  grid-template-columns: 1fr 60px 56px 32px;
+  gap: 6px;
   margin-bottom: 8px;
   align-items: center;
 }
 .ingredient-row input {
   margin: 0;
-  padding: 8px 10px;
+  padding: 8px 6px;
   border: 2px solid var(--border);
   border-radius: var(--radius);
   font-weight: 600;
   font-family: inherit;
-  font-size: .9rem;
+  font-size: .85rem;
   outline: none;
   background: var(--card-bg);
+  min-width: 0;
 }
 
 .ingredient-header {
   display: grid;
-  grid-template-columns: 1fr 80px 70px 32px;
+  grid-template-columns: 1fr 60px 56px 32px;
   gap: 6px;
   margin-bottom: 6px;
 }
@@ -632,26 +636,17 @@ img.emoji.recipe-photo {
 .shop-tab + .shop-tab { border-left: var(--border-w) solid var(--border); }
 .shop-tab.active { background: var(--green); color: #fff; }
 
-.next-week-header {
+.shop-week-label {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  font-size: .9rem;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: .8rem;
   font-weight: 800;
-  color: var(--text);
-  gap: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
 }
-
-.shop-item-preview {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 8px 0 2px;
-  border-bottom: 2px solid var(--border);
-}
-.shop-item-preview:last-of-type { border-bottom: none; }
-.shop-item-preview-name { font-size: .95rem; font-weight: 700; }
 
 /* ── Calendar planner ────────────────────────────────────── */
 .cal-nav {
@@ -844,22 +839,37 @@ img.emoji.recipe-photo {
 .cal-meal-card-hd .cal-chip-clear:active { color: var(--red); }
 
 .cal-meal-card-body {
-  padding: 14px;
-  cursor: pointer;
-  transition: background .1s;
-  min-height: 58px;
+  padding: 10px 14px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 48px;
 }
-.cal-meal-card-body:active,
-.cal-meal-card-body:focus-visible { background: var(--green-bg); outline: none; }
 
 .cal-card-recipe {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
+  padding: 6px 0;
 }
+.cal-card-recipe + .cal-card-recipe {
+  border-top: 1px solid color-mix(in srgb, var(--border) 20%, transparent);
+  padding-top: 8px;
+}
+.cal-recipe-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  transition: color .15s;
+  border-radius: 6px;
+}
+.cal-recipe-remove:active { color: var(--red); }
 .cal-card-emoji { font-size: 2rem; flex-shrink: 0; line-height: 1; }
 img.cal-card-emoji {
   width: 44px;
@@ -888,11 +898,15 @@ img.cal-card-emoji {
 .cal-card-add {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   color: var(--text-muted);
-  font-size: .9rem;
+  font-size: .85rem;
   font-weight: 700;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color .15s;
 }
+.cal-card-add:active { color: var(--green); }
 .cal-card-add-icon {
   width: 30px;
   height: 30px;
@@ -989,7 +1003,7 @@ img.mpi-emoji {
 /* ── Back button ─────────────────────────────────────────── */
 .back-btn {
   background: none;
-  border: 2px solid #fff;
+  border: none;
   font-size: 1.3rem;
   cursor: pointer;
   color: #fff;
@@ -998,13 +1012,11 @@ img.mpi-emoji {
   justify-content: center;
   padding: 4px;
   font-weight: 900;
-  box-shadow: 2px 2px 0 rgba(0,0,0,.3);
-  transition: transform .1s, box-shadow .1s;
+  transition: opacity .15s;
   border-radius: var(--radius);
 }
 .back-btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: none;
+  opacity: .6;
 }
 
 /* ── Toast ───────────────────────────────────────────────── */
@@ -1059,7 +1071,7 @@ img.mpi-emoji {
 /* ── Utility ─────────────────────────────────────────────── */
 .mt-8  { margin-top: 8px; }
 .mt-16 { margin-top: 16px; }
-.flex-row { display: flex; gap: 10px; }
+.flex-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .text-center { text-align: center; }
 
 /* ── Modal ───────────────────────────────────────────────── */
