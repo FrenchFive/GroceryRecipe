@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # ── Determine version bump from commits since last tag ──
+      # ── Determine version bump from lines changed since last tag ──
       - name: Determine version bump
         id: version
         run: |
@@ -27,14 +27,9 @@ jobs:
           LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
           if [ -z "$LATEST_TAG" ]; then
             LATEST_TAG="v0.0.0"
-            COMMITS=$(git log --oneline)
-          else
-            COMMITS=$(git log "${LATEST_TAG}..HEAD" --oneline)
           fi
 
           echo "Latest tag: $LATEST_TAG"
-          echo "Commits since tag:"
-          echo "$COMMITS"
 
           # Parse current version
           VERSION="${LATEST_TAG#v}"
@@ -42,12 +37,28 @@ jobs:
           MINOR=$(echo "$VERSION" | cut -d. -f2)
           PATCH=$(echo "$VERSION" | cut -d. -f3)
 
-          # Determine bump type from commit messages
-          BUMP="patch"
-          if echo "$COMMITS" | grep -qiE 'BREAKING[ -]CHANGE|^[a-z]+(\(.+\))?!:'; then
+          # Count lines changed (added + deleted) since last tag
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            LINES_CHANGED=$(git diff --stat $(git rev-list --max-parents=0 HEAD) HEAD | tail -1 | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+            LINES_DELETED=$(git diff --stat $(git rev-list --max-parents=0 HEAD) HEAD | tail -1 | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+          else
+            LINES_CHANGED=$(git diff --stat "${LATEST_TAG}..HEAD" | tail -1 | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+            LINES_DELETED=$(git diff --stat "${LATEST_TAG}..HEAD" | tail -1 | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+          fi
+
+          TOTAL_LINES=$((LINES_CHANGED + LINES_DELETED))
+          echo "Lines changed (insertions + deletions): $TOTAL_LINES"
+
+          # Determine bump type based on lines changed
+          # <50 lines = patch (minor fix)
+          # >=50 and <5000 lines = minor (mid changes)
+          # >=5000 lines = major (major update)
+          if [ "$TOTAL_LINES" -ge 5000 ]; then
             BUMP="major"
-          elif echo "$COMMITS" | grep -qiE '^feat(\(.+\))?:'; then
+          elif [ "$TOTAL_LINES" -ge 50 ]; then
             BUMP="minor"
+          else
+            BUMP="patch"
           fi
 
           # Apply bump
