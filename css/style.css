@@ -609,6 +609,7 @@ img.emoji.recipe-photo {
   display: flex;
   background: var(--card-bg);
   border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 0;
   margin-bottom: 14px;
@@ -619,7 +620,7 @@ img.emoji.recipe-photo {
   padding: 12px 8px;
   background: none;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 0;
   font-size: .85rem;
   font-weight: 800;
   cursor: pointer;
