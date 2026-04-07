@@ -2,6 +2,14 @@
  * app.js – SPA routing, view rendering, event wiring
  */
 
+/* ── Lucide icon helper ─────────────────────────────────── */
+function icon(name, size = 20, cls = '') {
+  return `<i data-lucide="${name}" class="lucide ${cls}" style="width:${size}px;height:${size}px;"></i>`;
+}
+function refreshIcons() {
+  if (window.lucide) lucide.createIcons();
+}
+
 /* ── State ───────────────────────────────────────────────── */
 let currentPage          = 'recipes';
 let detailRecipeId       = null;   // recipe open in detail view
@@ -62,16 +70,26 @@ function navigate(page) {
   if (navBtn) navBtn.classList.add('active');
 
   // Update header
-  const titles = {
-    recipes:  '🥘 Recipes',
-    shopping: '🛒 Shopping List',
-    planner:  '📅 Weekly Planner',
-    profile:  '👤 Profile',
-    detail:   '🍽 Recipe',
-    add:      '✏️ Add Recipe',
-    edit:     '✏️ Edit Recipe'
+  const titleIcons = {
+    recipes:  'chef-hat',
+    shopping: 'shopping-cart',
+    planner:  'calendar-days',
+    profile:  'user',
+    detail:   'utensils',
+    add:      'plus-circle',
+    edit:     'pencil'
   };
-  document.getElementById('header-title').textContent = titles[page] || 'GroceryRecipe';
+  const titleTexts = {
+    recipes:  'Recipes',
+    shopping: 'Shopping List',
+    planner:  'Weekly Planner',
+    profile:  'Profile',
+    detail:   'Recipe',
+    add:      'Add Recipe',
+    edit:     'Edit Recipe'
+  };
+  const hdr = document.getElementById('header-title');
+  hdr.innerHTML = `${icon(titleIcons[page] || 'home', 20, 'header-icon')} ${titleTexts[page] || 'GroceryRecipe'}`;
 
   // show/hide back & add buttons
   const inDetail = page === 'detail' || page === 'add' || page === 'edit';
@@ -89,12 +107,19 @@ function navigate(page) {
   if (page === 'edit')     renderAddForm(detailRecipeId);
 
   updateShoppingBadge();
+  refreshIcons();
 }
 
 function goBack() {
   if (currentPage === 'detail' || currentPage === 'edit') navigate('recipes');
   else if (currentPage === 'add') navigate('recipes');
   else navigate('recipes');
+}
+
+/* ── Recipe visual helper (photo or emoji) ──────────────── */
+function recipeVisual(r, cls) {
+  if (r && r.photo) return `<img class="${cls} recipe-photo" src="${r.photo}" alt="">`;
+  return `<span class="${cls}">${(r && r.emoji) || '🍽'}</span>`;
 }
 
 /* ── Recipes page ────────────────────────────────────────── */
@@ -105,7 +130,7 @@ function renderRecipes(filter = '') {
   if (list.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">🍳</div>
+        <div class="empty-icon">${icon('cooking-pot', 48)}</div>
         <p>${filter ? 'No recipes match your search.' : 'No recipes yet. Tap + to add one!'}</p>
       </div>`;
     return;
@@ -113,12 +138,12 @@ function renderRecipes(filter = '') {
 
   container.innerHTML = list.map(r => `
     <div class="recipe-item" data-id="${r.id}" role="button" tabindex="0">
-      <span class="recipe-emoji">${r.emoji || '🍽'}</span>
+      ${recipeVisual(r, 'recipe-emoji')}
       <div class="recipe-info">
         <h3>${escHtml(r.name)}</h3>
         <p>${r.ingredients.length} ingredients &bull; serves ${r.servings}</p>
       </div>
-      <span class="recipe-arrow">›</span>
+      <span class="recipe-arrow">${icon('chevron-right', 18)}</span>
     </div>
   `).join('');
 
@@ -141,7 +166,7 @@ function renderDetail(id) {
   const page = document.getElementById('page-detail');
   page.innerHTML = `
     <div class="detail-header">
-      <div class="emoji">${r.emoji || '🍽'}</div>
+      ${r.photo ? `<img class="emoji recipe-photo" src="${r.photo}" alt="">` : `<div class="emoji">${r.emoji || '🍽'}</div>`}
       <h2>${escHtml(r.name)}</h2>
       <p>Base: ${r.servings} serving${r.servings > 1 ? 's' : ''}</p>
     </div>
@@ -151,14 +176,11 @@ function renderDetail(id) {
       <div class="servings-row">
         <label>Servings:</label>
         <div class="qty-ctrl">
-          <button id="qty-minus" aria-label="Decrease">−</button>
+          <button id="qty-minus" aria-label="Decrease">${icon('minus', 16)}</button>
           <span class="qty-val" id="qty-val">${r.servings}</span>
-          <button id="qty-plus"  aria-label="Increase">+</button>
+          <button id="qty-plus"  aria-label="Increase">${icon('plus', 16)}</button>
         </div>
       </div>
-      <button class="btn btn-primary btn-full" id="btn-add-to-shop">
-        🛒 Add to Shopping List
-      </button>
     </div>
 
     <!-- Ingredients -->
@@ -178,8 +200,8 @@ function renderDetail(id) {
 
     <!-- Actions -->
     <div class="flex-row mt-16" style="padding-bottom:24px;">
-      <button class="btn btn-outline" style="flex:1;" id="btn-edit-recipe">✏️ Edit</button>
-      <button class="btn btn-danger"  style="flex:1;" id="btn-delete-recipe">🗑 Delete</button>
+      <button class="btn btn-outline" style="flex:1;" id="btn-edit-recipe">${icon('pencil', 16)} Edit</button>
+      <button class="btn btn-danger"  style="flex:1;" id="btn-delete-recipe">${icon('trash-2', 16)} Delete</button>
     </div>
   `;
 
@@ -206,13 +228,6 @@ function renderDetail(id) {
     servings++; document.getElementById('qty-val').textContent = servings; renderIngredients();
   });
 
-  document.getElementById('btn-add-to-shop').addEventListener('click', () => {
-    const mult = servings / r.servings;
-    ShoppingDB.addFromRecipe(r, mult);
-    updateShoppingBadge();
-    showToast(`${r.name} added to shopping list 🛒`);
-  });
-
   document.getElementById('btn-edit-recipe').addEventListener('click', () => navigate('edit'));
   document.getElementById('btn-delete-recipe').addEventListener('click', () => deleteRecipe(id));
 }
@@ -237,16 +252,27 @@ function renderAddForm(editId) {
           <input type="text" id="f-name" placeholder="e.g. Spaghetti Bolognese"
                  value="${r ? escHtml(r.name) : ''}" required>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div class="form-group">
-            <label>Emoji</label>
+        <div class="form-group">
+          <label>Photo or Emoji</label>
+          <div class="photo-emoji-toggle">
+            <button type="button" class="toggle-btn ${r && r.photo ? '' : 'active'}" id="tog-emoji">Emoji</button>
+            <button type="button" class="toggle-btn ${r && r.photo ? 'active' : ''}" id="tog-photo">Photo</button>
+          </div>
+          <div id="emoji-input-wrap" style="${r && r.photo ? 'display:none' : ''}">
             <input type="text" id="f-emoji" placeholder="🍽" maxlength="4"
                    value="${r ? r.emoji : ''}">
           </div>
-          <div class="form-group">
-            <label>Base Servings *</label>
-            <input type="number" id="f-servings" min="1" value="${r ? r.servings : PrefsDB.get('defaultServings')}" required>
+          <div id="photo-input-wrap" style="${r && r.photo ? '' : 'display:none'}">
+            <input type="file" id="f-photo" accept="image/*" capture="environment" style="display:none">
+            <div id="photo-preview" class="photo-preview ${r && r.photo ? 'has-photo' : ''}">
+              ${r && r.photo ? `<img src="${r.photo}" alt="Recipe photo">` : `<span class="photo-placeholder">${icon('camera', 20)} Tap to take or choose a photo</span>`}
+            </div>
+            <button type="button" class="btn btn-outline btn-full mt-8" id="clear-photo-btn" style="${r && r.photo ? '' : 'display:none'}">${icon('x', 16)} Remove Photo</button>
           </div>
+        </div>
+        <div class="form-group">
+          <label>Base Servings *</label>
+          <input type="number" id="f-servings" min="1" value="${r ? r.servings : PrefsDB.get('defaultServings')}" required>
         </div>
       </div>
 
@@ -260,18 +286,18 @@ function renderAddForm(editId) {
           <span></span>
         </div>
         <div id="ing-rows"></div>
-        <button type="button" class="btn btn-outline btn-full mt-8" id="add-ing-btn">+ Add Ingredient</button>
+        <button type="button" class="btn btn-outline btn-full mt-8" id="add-ing-btn">${icon('plus', 16)} Add Ingredient</button>
       </div>
 
       <!-- Steps -->
       <div class="card">
         <div class="section-title">Steps</div>
         <div id="step-rows"></div>
-        <button type="button" class="btn btn-outline btn-full mt-8" id="add-step-btn">+ Add Step</button>
+        <button type="button" class="btn btn-outline btn-full mt-8" id="add-step-btn">${icon('plus', 16)} Add Step</button>
       </div>
 
       <button type="submit" class="btn btn-primary btn-full mt-16" style="margin-bottom:32px;">
-        ${r ? '💾 Save Changes' : '✅ Add Recipe'}
+        ${r ? `${icon('save', 16)} Save Changes` : `${icon('check', 16)} Add Recipe`}
       </button>
     </form>
   `;
@@ -286,7 +312,7 @@ function renderAddForm(editId) {
       <input type="text"   class="ing-name" placeholder="Flour"  value="${escHtml(name)}">
       <input type="text"   class="ing-qty"  placeholder="200"    value="${escHtml(qty)}">
       <input type="text"   class="ing-unit" placeholder="g"      value="${escHtml(unit)}">
-      <button type="button" class="remove-btn" aria-label="Remove">✕</button>
+      <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
     `;
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
     ingContainer.appendChild(div);
@@ -297,7 +323,7 @@ function renderAddForm(editId) {
     div.className = 'step-row';
     div.innerHTML = `
       <textarea class="step-text" placeholder="Describe this step…">${escHtml(text)}</textarea>
-      <button type="button" class="remove-btn" aria-label="Remove">✕</button>
+      <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
     `;
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
     stepContainer.appendChild(div);
@@ -314,6 +340,62 @@ function renderAddForm(editId) {
 
   document.getElementById('add-ing-btn').addEventListener('click',  () => addIngRow());
   document.getElementById('add-step-btn').addEventListener('click', () => addStepRow());
+
+  // Photo / Emoji toggle
+  let pendingPhoto = r ? r.photo || null : null;
+  const togEmoji   = document.getElementById('tog-emoji');
+  const togPhoto   = document.getElementById('tog-photo');
+  const emojiWrap  = document.getElementById('emoji-input-wrap');
+  const photoWrap  = document.getElementById('photo-input-wrap');
+  const photoInput = document.getElementById('f-photo');
+  const preview    = document.getElementById('photo-preview');
+  const clearBtn   = document.getElementById('clear-photo-btn');
+
+  togEmoji.addEventListener('click', () => {
+    togEmoji.classList.add('active'); togPhoto.classList.remove('active');
+    emojiWrap.style.display = ''; photoWrap.style.display = 'none';
+  });
+  togPhoto.addEventListener('click', () => {
+    togPhoto.classList.add('active'); togEmoji.classList.remove('active');
+    emojiWrap.style.display = 'none'; photoWrap.style.display = '';
+  });
+
+  preview.addEventListener('click', () => photoInput.click());
+
+  photoInput.addEventListener('change', () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 512;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          const ratio = Math.min(MAX / w, MAX / h);
+          w = Math.round(w * ratio); h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        pendingPhoto = canvas.toDataURL('image/jpeg', 0.7);
+        preview.innerHTML = `<img src="${pendingPhoto}" alt="Recipe photo">`;
+        preview.classList.add('has-photo');
+        clearBtn.style.display = '';
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    pendingPhoto = null;
+    photoInput.value = '';
+    preview.innerHTML = `<span class="photo-placeholder">${icon('camera', 20)} Tap to take or choose a photo</span>`;
+    refreshIcons();
+    preview.classList.remove('has-photo');
+    clearBtn.style.display = 'none';
+  });
 
   document.getElementById('recipe-form').addEventListener('submit', e => {
     e.preventDefault();
@@ -332,10 +414,12 @@ function renderAddForm(editId) {
       .map(t => t.value.trim())
       .filter(Boolean);
 
+    const usePhoto = togPhoto.classList.contains('active') && pendingPhoto;
     const recipe = {
       ...(r || {}),
       name,
-      emoji:     document.getElementById('f-emoji').value.trim() || '🍽',
+      emoji:     usePhoto ? '' : (document.getElementById('f-emoji').value.trim() || '🍽'),
+      photo:     usePhoto ? pendingPhoto : null,
       servings:  Math.max(1, parseInt(document.getElementById('f-servings').value) || 1),
       ingredients,
       steps
@@ -343,61 +427,96 @@ function renderAddForm(editId) {
 
     const saved = RecipeDB.save(recipe);
     detailRecipeId = saved.id;
-    showToast(r ? 'Recipe updated ✅' : 'Recipe added ✅');
+    showToast(r ? 'Recipe updated' : 'Recipe added');
     navigate('detail');
   });
 }
 
 /* ── Shopping page ───────────────────────────────────────── */
+
+/** Compute merged ingredient list from a week's plan. */
+function ingredientsForWeek(wk) {
+  const plan = PlanDB.allForWeek(wk);
+  const ingMap = {};
+  DAYS.forEach(day => {
+    MEALS.forEach(meal => {
+      const rids = plan[day]?.[meal] || [];
+      rids.forEach(rid => {
+        const recipe = RecipeDB.get(rid);
+        if (!recipe) return;
+        recipe.ingredients.forEach(ing => {
+          const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
+          if (ingMap[k]) {
+            const prev = parseFloat(ingMap[k].qty), add = parseFloat(ing.qty);
+            if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
+            if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
+          } else {
+            ingMap[k] = { name: ing.name, qty: ing.qty, unit: ing.unit, sources: [recipe.name] };
+          }
+        });
+      });
+    });
+  });
+  return Object.values(ingMap);
+}
+
 function renderShopping() {
-  const page   = document.getElementById('page-shopping');
-  const tabs   = `
+  const page = document.getElementById('page-shopping');
+  const tabs = `
     <div class="shop-tabs">
-      <button class="shop-tab${shoppingView === 'current' ? ' active' : ''}" data-view="current">🛒 Current List</button>
-      <button class="shop-tab${shoppingView === 'next'    ? ' active' : ''}" data-view="next">📅 Next Week</button>
+      <button class="shop-tab${shoppingView === 'current' ? ' active' : ''}" data-view="current">${icon('calendar-days', 16)} This Week</button>
+      <button class="shop-tab${shoppingView === 'next'    ? ' active' : ''}" data-view="next">${icon('calendar-range', 16)} Next Week</button>
     </div>`;
 
   if (shoppingView === 'next') {
-    renderShoppingNextWeek(page, tabs);
+    renderShoppingWeek(page, tabs, 1);
   } else {
-    renderShoppingCurrent(page, tabs);
+    renderShoppingWeek(page, tabs, 0);
   }
 
   page.querySelectorAll('.shop-tab').forEach(tab => {
     tab.addEventListener('click', () => { shoppingView = tab.dataset.view; renderShopping(); });
   });
+  refreshIcons();
 }
 
-function renderShoppingCurrent(page, tabs) {
-  const items     = ShoppingDB.all();
-  const unchecked = items.filter(i => !i.checked);
-  const checked   = items.filter(i =>  i.checked);
+function renderShoppingWeek(page, tabs, weekOffset) {
+  const d = new Date();
+  d.setDate(d.getDate() + weekOffset * 7);
+  const wk    = weekKey(d);
+  const label = formatWeekRange(wk);
+  const items = ingredientsForWeek(wk);
 
-  function itemHtml(i) {
-    return `<div class="shop-item${i.checked ? ' checked' : ''}" data-id="${i.id}">
-      <input type="checkbox" id="chk-${i.id}" ${i.checked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
-      <label for="chk-${i.id}">
-        ${escHtml(i.name)}
-        <span class="shop-source">from ${escHtml(i.source)}</span>
-      </label>
-      <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
-      <button class="shop-remove" data-id="${i.id}" aria-label="Remove">✕</button>
-    </div>`;
-  }
+  // Load checked state from ShoppingDB (keyed by week)
+  const checkedKey = `shop_checked_${wk}`;
+  const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
 
   let body;
   if (items.length === 0) {
     body = `<div class="empty-state">
-      <div class="empty-icon">🛒</div>
-      <p>Your shopping list is empty.<br>Add ingredients from a recipe!</p>
+      <div class="empty-icon">${icon('shopping-cart', 48)}</div>
+      <p>No meals planned${weekOffset === 0 ? ' this' : ' next'} week.<br>Go to the Planner to add some!</p>
     </div>`;
   } else {
-    const actions = `
-      <div class="flex-row" style="margin-bottom:14px;justify-content:flex-end;">
-        ${checked.length ? `<button class="btn btn-outline" id="btn-clear-checked" style="font-size:.85rem;padding:8px 14px;">✓ Remove checked</button>` : ''}
-        <button class="btn btn-danger" id="btn-clear-all" style="font-size:.85rem;padding:8px 14px;">🗑 Clear all</button>
+    const unchecked = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+    const checked   = items.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+
+    function itemHtml(i) {
+      const key = i.name.toLowerCase() + '\u0000' + i.unit;
+      const isChecked = checkedSet.has(key);
+      const safeKey = btoa(encodeURIComponent(key));
+      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-key="${safeKey}">
+        <input type="checkbox" id="chk-${safeKey}" ${isChecked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
+        <label for="chk-${safeKey}">
+          ${escHtml(i.name)}
+          <span class="shop-source">${i.sources.map(escHtml).join(', ')}</span>
+        </label>
+        <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
       </div>`;
-    body = actions + `
+    }
+
+    const weekLabel = `<div class="shop-week-label">${icon('calendar-days', 14)} ${escHtml(label)}</div>`;
+    body = weekLabel + `
       <div class="card" id="shop-list">
         ${unchecked.map(itemHtml).join('')}
         ${checked.length && unchecked.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
@@ -407,116 +526,17 @@ function renderShoppingCurrent(page, tabs) {
 
   page.innerHTML = tabs + body;
 
+  // Toggle checked state
   page.querySelectorAll('.shop-item input[type=checkbox]').forEach(chk => {
     chk.addEventListener('change', () => {
-      ShoppingDB.toggle(chk.closest('.shop-item').dataset.id);
-      updateShoppingBadge();
+      const safeKey = chk.closest('.shop-item').dataset.key;
+      const key = decodeURIComponent(atob(safeKey));
+      if (chk.checked) checkedSet.add(key);
+      else checkedSet.delete(key);
+      localStorage.setItem(checkedKey, JSON.stringify([...checkedSet]));
       renderShopping();
     });
   });
-
-  page.querySelectorAll('.shop-remove').forEach(btn => {
-    btn.addEventListener('click', () => {
-      ShoppingDB.remove(btn.dataset.id);
-      updateShoppingBadge();
-      renderShopping();
-    });
-  });
-
-  const btnCA = document.getElementById('btn-clear-all');
-  if (btnCA) {
-    btnCA.addEventListener('click', () => {
-      if (confirm('Clear the entire shopping list?')) {
-        ShoppingDB.clearAll();
-        updateShoppingBadge();
-        renderShopping();
-      }
-    });
-  }
-
-  const btnCC = document.getElementById('btn-clear-checked');
-  if (btnCC) {
-    btnCC.addEventListener('click', () => {
-      ShoppingDB.clearChecked();
-      updateShoppingBadge();
-      renderShopping();
-    });
-  }
-}
-
-function renderShoppingNextWeek(page, tabs) {
-  const d = new Date();
-  d.setDate(d.getDate() + 7);
-  const nwk   = weekKey(d);
-  const plan  = PlanDB.allForWeek(nwk);
-  const dates = getWeekDates(nwk);
-  const label = formatWeekRange(nwk);
-
-  // Collect meals planned for next week
-  const meals = [];
-  DAYS.forEach((day, idx) => {
-    MEALS.forEach(meal => {
-      const rid = plan[day]?.[meal];
-      if (rid) {
-        const recipe = RecipeDB.get(rid);
-        if (recipe) meals.push({ recipe, day, meal, date: dates[idx] });
-      }
-    });
-  });
-
-  let body;
-  if (meals.length === 0) {
-    body = `<div class="empty-state">
-      <div class="empty-icon">📅</div>
-      <p>No meals planned for next week.<br>Go to the Planner to schedule some!</p>
-    </div>`;
-  } else {
-    // Merge ingredients across all planned recipes
-    const ingMap = {};
-    meals.forEach(({ recipe }) => {
-      recipe.ingredients.forEach(ing => {
-        const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
-        if (ingMap[k]) {
-          const prev = parseFloat(ingMap[k].qty), add = parseFloat(ing.qty);
-          if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
-          if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
-        } else {
-          ingMap[k] = { name: ing.name, qty: ing.qty, unit: ing.unit, sources: [recipe.name] };
-        }
-      });
-    });
-    const ingList = Object.values(ingMap);
-
-    body = `
-      <div class="next-week-header">
-        <span>📅 ${escHtml(label)}</span>
-        <button class="btn btn-primary" id="btn-add-next-week" style="font-size:.8rem;padding:8px 14px;">
-          🛒 Add to shopping list
-        </button>
-      </div>
-      <div class="card">
-        ${ingList.map(i => `
-          <div class="shop-item-preview">
-            <span class="shop-item-preview-name">${escHtml(i.name)}</span>
-            <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
-          </div>
-          <span class="shop-source" style="padding:0 0 8px;display:block;">${i.sources.map(escHtml).join(', ')}</span>
-        `).join('')}
-      </div>`;
-  }
-
-  page.innerHTML = tabs + body;
-
-  const btnANW = document.getElementById('btn-add-next-week');
-  if (btnANW) {
-    btnANW.addEventListener('click', () => {
-      meals.forEach(({ recipe }) => ShoppingDB.addFromRecipe(recipe, 1));
-      updateShoppingBadge();
-      shoppingView = 'current';
-      renderShopping();
-      showToast(`Next week's groceries added to shopping list 🛒`);
-    });
-  }
 }
 
 /* ── Planner page ────────────────────────────────────────── */
@@ -526,13 +546,13 @@ function renderPlanner() {
   const dates   = getWeekDates(wk);
   const nowDate = new Date(); nowDate.setHours(0,0,0,0);
 
-  const mealIcons = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' };
+  const mealIcons = { breakfast: icon('sunrise', 18), lunch: icon('sun', 18), dinner: icon('moon', 18) };
   const page      = document.getElementById('page-planner');
 
   const selIdx  = getEffectiveSelIdx(nowDate);
   const selDay  = DAYS[selIdx];
   const selDate = dates[selIdx];
-  const selPlan = plan[selDay] || { breakfast: null, lunch: null, dinner: null };
+  const selPlan = plan[selDay] || { breakfast: [], lunch: [], dinner: [] };
 
   const todayBtn = plannerWeekOffset !== 0
     ? `<button class="cal-today-btn" id="planner-today">Today</button>`
@@ -553,34 +573,40 @@ function renderPlanner() {
 
   /* ── 3 meal cards for selected day ──── */
   const mealCardsHtml = MEALS.map(meal => {
-    const rid    = selPlan[meal];
-    const recipe = rid ? RecipeDB.get(rid) : null;
-    const body   = recipe
-      ? `<div class="cal-card-recipe">
-           <span class="cal-card-emoji">${recipe.emoji || '🍽'}</span>
-           <div class="cal-card-info">
-             <span class="cal-card-name">${escHtml(recipe.name)}</span>
-             <span class="cal-card-meta">${recipe.ingredients.length} ingredients · serves ${recipe.servings}</span>
-           </div>
-           <span class="cal-card-arrow">›</span>
-         </div>`
-      : `<div class="cal-card-add">
-           <span class="cal-card-add-icon">+</span>
-           <span>Add ${meal}</span>
-         </div>`;
+    const rids    = selPlan[meal] || [];
+    const recipes = rids.map(id => RecipeDB.get(id)).filter(Boolean);
+    const hasRecipes = recipes.length > 0;
+
+    const recipesHtml = recipes.map(recipe => `
+      <div class="cal-card-recipe">
+        ${recipeVisual(recipe, 'cal-card-emoji')}
+        <div class="cal-card-info">
+          <span class="cal-card-name">${escHtml(recipe.name)}</span>
+          <span class="cal-card-meta">${recipe.ingredients.length} ing · serves ${recipe.servings}</span>
+        </div>
+        <button class="cal-recipe-remove" data-wk="${wk}" data-day="${escHtml(selDay)}"
+                data-meal="${meal}" data-rid="${recipe.id}"
+                aria-label="Remove ${recipe.name}">${icon('x', 14)}</button>
+      </div>
+    `).join('');
+
+    const addBtn = `<div class="cal-card-add cal-card-add-more" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
+                         role="button" tabindex="0">
+      <span class="cal-card-add-icon">${icon('plus', 18)}</span>
+      <span>${hasRecipes ? 'Add another' : `Add ${meal}`}</span>
+    </div>`;
 
     return `<div class="cal-meal-card">
       <div class="cal-meal-card-hd">
         <span class="cal-meal-card-icon">${mealIcons[meal]}</span>
         <span class="cal-meal-card-label">${meal.charAt(0).toUpperCase() + meal.slice(1)}</span>
-        ${recipe ? `<button class="cal-chip-clear"
-                      data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
-                      aria-label="Clear ${meal}">×</button>` : ''}
+        ${hasRecipes ? `<button class="cal-chip-clear"
+                          data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
+                          aria-label="Clear all ${meal}">${icon('x', 14)}</button>` : ''}
       </div>
-      <div class="cal-meal-card-body"
-           data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
-           role="button" tabindex="0" aria-label="${recipe ? `Change ${meal}: ${recipe.name}` : `Add ${meal}`}">
-        ${body}
+      <div class="cal-meal-card-body">
+        ${recipesHtml}
+        ${addBtn}
       </div>
     </div>`;
   }).join('');
@@ -589,12 +615,12 @@ function renderPlanner() {
 
   page.innerHTML = `
     <div class="cal-nav">
-      <button class="cal-nav-btn" id="planner-prev" aria-label="Previous week">‹</button>
+      <button class="cal-nav-btn" id="planner-prev" aria-label="Previous week">${icon('chevron-left', 20)}</button>
       <div class="cal-nav-center">
         <div class="cal-nav-label">${formatWeekRange(wk)}</div>
         ${todayBtn}
       </div>
-      <button class="cal-nav-btn" id="planner-next" aria-label="Next week">›</button>
+      <button class="cal-nav-btn" id="planner-next" aria-label="Next week">${icon('chevron-right', 20)}</button>
     </div>
 
     <div class="cal-week-strip" role="tablist" aria-label="Day selector">
@@ -605,10 +631,8 @@ function renderPlanner() {
       <div class="cal-detail-heading">
         <span class="cal-detail-date">${escHtml(selHeading)}</span>
         <div class="cal-detail-actions">
-          <button class="btn btn-outline" id="btn-plan-to-shop"
-                  style="font-size:.75rem;padding:5px 10px;">🛒 Add week</button>
           <button class="btn btn-outline" id="btn-clear-week"
-                  style="font-size:.75rem;padding:5px 10px;border-color:var(--red);color:var(--red);">🗑 Clear</button>
+                  style="font-size:.75rem;padding:5px 10px;border-color:var(--red);color:var(--red);">${icon('trash-2', 14)} Clear week</button>
         </div>
       </div>
       <div class="cal-meal-cards">
@@ -643,33 +667,29 @@ function renderPlanner() {
     });
   });
 
-  /* ── Meal card body → open picker ──── */
-  page.querySelectorAll('.cal-meal-card-body').forEach(el => {
+  /* ── Add button → open picker ──── */
+  page.querySelectorAll('.cal-card-add-more').forEach(el => {
     const open = () => openMealPicker(el.dataset.wk, el.dataset.day, el.dataset.meal);
     el.addEventListener('click', open);
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
   });
 
-  /* ── Chip clear (×) ──── */
-  page.querySelectorAll('.cal-chip-clear').forEach(btn => {
+  /* ── Remove single recipe from meal ──── */
+  page.querySelectorAll('.cal-recipe-remove').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      PlanDB.set(btn.dataset.wk, btn.dataset.day, btn.dataset.meal, null);
+      PlanDB.remove(btn.dataset.wk, btn.dataset.day, btn.dataset.meal, btn.dataset.rid);
       renderPlanner();
     });
   });
 
-  /* ── Add week to shopping ──── */
-  document.getElementById('btn-plan-to-shop').addEventListener('click', () => {
-    let count = 0;
-    DAYS.forEach(day => {
-      MEALS.forEach(meal => {
-        const rid = plan[day]?.[meal];
-        if (rid) { const r = RecipeDB.get(rid); if (r) { ShoppingDB.addFromRecipe(r, 1); count++; } }
-      });
+  /* ── Clear all recipes from meal ──── */
+  page.querySelectorAll('.cal-chip-clear').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      PlanDB.clearMeal(btn.dataset.wk, btn.dataset.day, btn.dataset.meal);
+      renderPlanner();
     });
-    updateShoppingBadge();
-    showToast(count > 0 ? `${count} meal(s) added to shopping list 🛒` : 'No meals planned yet');
   });
 
   /* ── Clear week ──── */
@@ -690,13 +710,9 @@ function openMealPicker(wk, day, meal) {
   const recipes = RecipeDB.all();
   const list    = document.getElementById('meal-picker-list');
   list.innerHTML = `
-    <button class="meal-picker-item meal-picker-clear" data-id="">
-      <span class="mpi-emoji">✕</span>
-      <span class="mpi-name">None (clear)</span>
-    </button>
     ${recipes.map(r => `
       <button class="meal-picker-item" data-id="${r.id}">
-        <span class="mpi-emoji">${r.emoji || '🍽'}</span>
+        ${recipeVisual(r, 'mpi-emoji')}
         <span class="mpi-name">${escHtml(r.name)}</span>
       </button>
     `).join('')}
@@ -704,12 +720,13 @@ function openMealPicker(wk, day, meal) {
 
   list.querySelectorAll('.meal-picker-item').forEach(btn => {
     btn.addEventListener('click', () => {
-      PlanDB.set(pickerCtx.wk, pickerCtx.day, pickerCtx.meal, btn.dataset.id || null);
+      PlanDB.add(pickerCtx.wk, pickerCtx.day, pickerCtx.meal, btn.dataset.id);
       closeMealPicker();
       renderPlanner();
     });
   });
 
+  refreshIcons();
   const picker   = document.getElementById('meal-picker');
   const backdrop = document.getElementById('meal-picker-backdrop');
   picker.classList.add('open');
@@ -723,20 +740,17 @@ function closeMealPicker() {
 
 /* ── Theme ──────────────────────────────────────────────── */
 function applyTheme() {
-  const dark  = PrefsDB.get('darkMode');
-  const key   = PrefsDB.get('accentColor') || 'green';
-  const color = ACCENT_COLORS[key] || ACCENT_COLORS.green;
+  const key   = PrefsDB.get('accentColor') || 'blue';
+  const color = ACCENT_COLORS[key] || ACCENT_COLORS.blue;
   const root  = document.documentElement;
 
-  root.setAttribute('data-theme', dark ? 'dark' : 'light');
-
   // Apply accent color CSS variables
-  root.style.setProperty('--green',       dark ? color.darkMain  : color.main);
-  root.style.setProperty('--green-light', dark ? color.darkLight : color.light);
-  root.style.setProperty('--green-bg',    dark ? color.darkBg    : color.bg);
+  root.style.setProperty('--green',       color.main);
+  root.style.setProperty('--green-light', color.light);
+  root.style.setProperty('--green-bg',    color.bg);
 
   const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) metaTheme.content = dark ? '#1e1e1e' : color.main;
+  if (metaTheme) metaTheme.content = color.main;
 }
 
 /* ── Profile page ───────────────────────────────────────── */
@@ -744,47 +758,40 @@ function renderProfile() {
   const page  = document.getElementById('page-profile');
   const prefs = PrefsDB.all();
   const recipeCount = RecipeDB.all().length;
-  const shopCount   = ShoppingDB.count();
+  const shopCount   = ingredientsForWeek(weekKey(new Date())).length;
 
   page.innerHTML = `
     <div class="profile-header">
-      <div class="profile-avatar">🥘</div>
+      <div class="profile-avatar">${icon('chef-hat', 36)}</div>
       <div class="profile-app-name">GroceryRecipe</div>
       <div class="profile-version">v0.0.1</div>
-    </div>
-
-    <!-- Stats -->
-    <div class="settings-section">
-      <div class="settings-section-title">Overview</div>
-      <div class="card">
-        <div class="setting-row">
-          <div class="setting-label">
-            <span class="setting-label-text">Recipes saved</span>
-          </div>
-          <span style="font-weight:700;color:var(--green);">${recipeCount}</span>
+      <div class="profile-stats">
+        <div class="profile-stat">
+          <span class="profile-stat-num">${recipeCount}</span>
+          <span class="profile-stat-label">Recipes</span>
         </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <span class="setting-label-text">Shopping items</span>
-          </div>
-          <span style="font-weight:700;color:var(--green);">${shopCount}</span>
+        <div class="profile-stat-divider"></div>
+        <div class="profile-stat">
+          <span class="profile-stat-num">${shopCount}</span>
+          <span class="profile-stat-label">Shopping Items</span>
         </div>
       </div>
     </div>
 
-    <!-- Appearance -->
+    <!-- Settings -->
     <div class="settings-section">
-      <div class="settings-section-title">Appearance</div>
+      <div class="settings-section-title">Settings</div>
       <div class="card">
         <div class="setting-row">
           <div class="setting-label">
-            <span class="setting-label-text">Dark Mode</span>
-            <span class="setting-label-desc">Easier on the eyes at night</span>
+            <span class="setting-label-text">Default Servings</span>
+            <span class="setting-label-desc">Pre-fill when adding recipes</span>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="pref-dark-mode" ${prefs.darkMode ? 'checked' : ''}>
-            <span class="toggle-track"></span>
-          </label>
+          <select class="setting-select" id="pref-default-servings">
+            ${[1,2,3,4,5,6,8,10].map(n =>
+              `<option value="${n}" ${prefs.defaultServings === n ? 'selected' : ''}>${n}</option>`
+            ).join('')}
+          </select>
         </div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
           <div class="setting-label">
@@ -802,24 +809,6 @@ function renderProfile() {
               </button>
             `).join('')}
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Cooking -->
-    <div class="settings-section">
-      <div class="settings-section-title">Cooking</div>
-      <div class="card">
-        <div class="setting-row">
-          <div class="setting-label">
-            <span class="setting-label-text">Default Servings</span>
-            <span class="setting-label-desc">Pre-fill when adding recipes</span>
-          </div>
-          <select class="setting-select" id="pref-default-servings">
-            ${[1,2,3,4,5,6,8,10].map(n =>
-              `<option value="${n}" ${prefs.defaultServings === n ? 'selected' : ''}>${n}</option>`
-            ).join('')}
-          </select>
         </div>
       </div>
     </div>
@@ -842,12 +831,6 @@ function renderProfile() {
       Made with love for home cooks
     </div>
   `;
-
-  // Dark mode toggle
-  document.getElementById('pref-dark-mode').addEventListener('change', e => {
-    PrefsDB.set('darkMode', e.target.checked);
-    applyTheme();
-  });
 
   // Accent color picker
   document.querySelectorAll('#color-picker .color-swatch').forEach(btn => {
@@ -882,7 +865,11 @@ function renderProfile() {
 
 /* ── Badge ───────────────────────────────────────────────── */
 function updateShoppingBadge() {
-  const n = ShoppingDB.count();
+  const wk = weekKey(new Date());
+  const items = ingredientsForWeek(wk);
+  const checkedKey = `shop_checked_${wk}`;
+  const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
+  const n = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit)).length;
   let badge = document.getElementById('shop-badge');
   if (!badge) {
     const btn = document.querySelector('.nav-btn[data-page="shopping"]');
