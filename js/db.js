@@ -193,15 +193,17 @@ const RecipeDB = {
     return this.all().filter(r => r.name.toLowerCase().includes(term));
   },
 
-  /** Return all unique ingredient names across every recipe (sorted). */
-  allIngredientNames() {
-    const names = new Set();
+  /** Return unique ingredients {name, unit} across all recipes (sorted by name).
+   *  Keeps the first unit encountered per ingredient name. */
+  allIngredientsWithUnits() {
+    const map = {}; // lowercaseName → {name, unit}
     this.all().forEach(r => {
       r.ingredients.forEach(i => {
-        if (i.name.trim()) names.add(i.name.trim());
+        const key = i.name.trim().toLowerCase();
+        if (key && !map[key]) map[key] = { name: i.name.trim(), unit: i.unit || '' };
       });
     });
-    return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   }
 };
 

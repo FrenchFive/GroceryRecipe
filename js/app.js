@@ -256,14 +256,8 @@ function renderAddForm(editId) {
   const ingContainer  = document.getElementById('ing-rows');
   const stepContainer = document.getElementById('step-rows');
 
-  // Build autocomplete datalist from all existing ingredient names
-  let datalist = document.getElementById('ing-suggestions');
-  if (datalist) datalist.remove();
-  datalist = document.createElement('datalist');
-  datalist.id = 'ing-suggestions';
-  const knownNames = RecipeDB.allIngredientNames();
-  datalist.innerHTML = knownNames.map(n => `<option value="${escHtml(n)}">`).join('');
-  document.body.appendChild(datalist);
+  // Ingredient autocomplete data: [{name, unit}]
+  const knownIngredients = RecipeDB.allIngredientsWithUnits();
 
   // Build unit <select> options HTML (grouped by category)
   const unitOptHtml = (() => {
@@ -281,11 +275,64 @@ function renderAddForm(editId) {
     ).join('');
   })();
 
+  /** Debounce helper */
+  function debounce(fn, ms) {
+    let timer;
+    return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+  }
+
+  /** Wire up custom autocomplete on an ingredient row */
+  function setupAutocomplete(row) {
+    const nameInput = row.querySelector('.ing-name');
+    const dropdown  = row.querySelector('.ing-ac');
+
+    function showSuggestions() {
+      const q = nameInput.value.trim().toLowerCase();
+      dropdown.innerHTML = '';
+      if (q.length < 3) { dropdown.classList.remove('open'); return; }
+
+      const matches = knownIngredients
+        .filter(i => i.name.toLowerCase().includes(q))
+        .slice(0, 2);
+
+      if (matches.length === 0) { dropdown.classList.remove('open'); return; }
+
+      matches.forEach(match => {
+        const item = document.createElement('div');
+        item.className = 'ing-ac-item';
+        item.innerHTML = `<span>${escHtml(match.name)}</span><span class="ing-ac-unit">${escHtml(match.unit || 'unit')}</span>`;
+        item.addEventListener('mousedown', e => {
+          e.preventDefault(); // prevent blur before selection
+          nameInput.value = match.name;
+          // Copy the unit from the recipe
+          const sel = row.querySelector('.ing-unit');
+          const opt = [...sel.options].find(o => o.value === (match.unit || ''));
+          if (opt) sel.value = opt.value;
+          dropdown.classList.remove('open');
+        });
+        dropdown.appendChild(item);
+      });
+      dropdown.classList.add('open');
+    }
+
+    const debouncedShow = debounce(showSuggestions, 200);
+    nameInput.addEventListener('input', debouncedShow);
+    nameInput.addEventListener('blur', () => {
+      setTimeout(() => dropdown.classList.remove('open'), 150);
+    });
+    nameInput.addEventListener('focus', () => {
+      if (nameInput.value.trim().length >= 3) debouncedShow();
+    });
+  }
+
   function addIngRow(name = '', qty = '', unit = '', focus = false) {
     const div = document.createElement('div');
     div.className = 'ingredient-row';
     div.innerHTML = `
-      <input type="text" class="ing-name" placeholder="Flour" value="${escHtml(name)}" list="ing-suggestions" autocomplete="off">
+      <div class="ing-name-wrap">
+        <input type="text" class="ing-name" placeholder="Flour" value="${escHtml(name)}" autocomplete="off">
+        <div class="ing-ac"></div>
+      </div>
       <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
       <div class="unit-ctrl">
         <button type="button" class="unit-mag-btn unit-down" aria-label="Smaller unit">−</button>
@@ -299,7 +346,6 @@ function renderAddForm(editId) {
     const matchOpt = [...sel.options].find(o => o.value === (unit || ''));
     if (matchOpt) matchOpt.selected = true;
     else if (unit) {
-      // If legacy unit not in list, add it as custom option
       const opt = document.createElement('option');
       opt.value = unit; opt.textContent = unit; opt.selected = true;
       sel.appendChild(opt);
@@ -309,6 +355,10 @@ function renderAddForm(editId) {
     div.querySelector('.unit-up').addEventListener('click', () => shiftUnit(div, 1));
     div.querySelector('.unit-down').addEventListener('click', () => shiftUnit(div, -1));
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
+
+    // Autocomplete
+    setupAutocomplete(div);
+
     ingContainer.appendChild(div);
 
     if (focus) {
