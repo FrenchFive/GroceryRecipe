@@ -21,6 +21,8 @@ jobs:
       - name: Determine version bump
         id: version
         run: |
+          set -e
+
           # Get the latest version tag, default to 0.0.0
           LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
           if [ -z "$LATEST_TAG" ]; then
@@ -96,6 +98,7 @@ jobs:
       # ── Build web dist ──
       - name: Build web assets
         run: |
+          set -e
           VERSION="${{ steps.version.outputs.version }}"
           DIST="dist"
 
@@ -109,7 +112,7 @@ jobs:
           cp js/app.js     "$DIST/js/"
           cp icons/*.png   "$DIST/icons/"
 
-          sed "s/grocery-recipe-[^']*/grocery-recipe-$VERSION/" sw.js > "$DIST/sw.js"
+          sed "s/grocery-recipe-v[^']*/grocery-recipe-v$VERSION/" sw.js > "$DIST/sw.js"
 
       # ── Build Android APK ──
       - name: Sync Capacitor
@@ -122,12 +125,11 @@ jobs:
       - name: Locate APK
         id: apk
         run: |
+          set -e
           APK_PATH=$(find android/app/build/outputs/apk/release -name '*.apk' | head -n1)
           if [ -z "$APK_PATH" ]; then
-            # Fall back to debug if release unsigned fails
-            echo "Release APK not found, building debug..."
-            cd android && ./gradlew assembleDebug --no-daemon && cd ..
-            APK_PATH=$(find android/app/build/outputs/apk/debug -name '*.apk' | head -n1)
+            echo "::error::Release APK not found! Check signing configuration."
+            exit 1
           fi
           DEST="GroceryRecipe-${{ steps.version.outputs.version }}.apk"
           cp "$APK_PATH" "$DEST"
