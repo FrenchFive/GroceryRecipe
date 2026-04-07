@@ -369,7 +369,9 @@ function renderShoppingCurrent(page, tabs) {
     </div>`;
   } else {
     const actions = `
-      <div class="flex-row" style="margin-bottom:14px;justify-content:flex-end;">
+      <div class="flex-row" style="margin-bottom:14px;justify-content:flex-end;flex-wrap:wrap;gap:8px;">
+        <button class="btn btn-outline" id="btn-copy-list" style="font-size:.85rem;padding:8px 14px;">📋 Copy list</button>
+        <button class="btn btn-outline" id="btn-share-list" style="font-size:.85rem;padding:8px 14px;">📤 Share</button>
         ${checked.length ? `<button class="btn btn-outline" id="btn-clear-checked" style="font-size:.85rem;padding:8px 14px;">✓ Remove checked</button>` : ''}
         <button class="btn btn-danger" id="btn-clear-all" style="font-size:.85rem;padding:8px 14px;">🗑 Clear all</button>
       </div>`;
@@ -416,6 +418,30 @@ function renderShoppingCurrent(page, tabs) {
       ShoppingDB.clearChecked();
       updateShoppingBadge();
       renderShopping();
+    });
+  }
+
+  const btnCopy = document.getElementById('btn-copy-list');
+  if (btnCopy) {
+    btnCopy.addEventListener('click', () => {
+      const text = formatShoppingListText(items);
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('List copied to clipboard!');
+      });
+    });
+  }
+
+  const btnShare = document.getElementById('btn-share-list');
+  if (btnShare) {
+    btnShare.addEventListener('click', () => {
+      const text = formatShoppingListText(items);
+      if (navigator.share) {
+        navigator.share({ title: 'Shopping List', text }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast('Share not supported on this browser — list copied to clipboard instead.');
+        });
+      }
     });
   }
 }
@@ -711,6 +737,19 @@ function updateShoppingBadge() {
   }
   badge.textContent  = n;
   badge.style.display = n > 0 ? 'inline' : 'none';
+}
+
+/* ── Shopping list text formatter ────────────────────────── */
+function formatShoppingListText(items) {
+  const unchecked = items.filter(i => !i.checked);
+  const checked   = items.filter(i =>  i.checked);
+  let lines = ['Shopping List', ''];
+  unchecked.forEach(i => lines.push(`- ${i.qty} ${i.unit} ${i.name}`));
+  if (checked.length) {
+    lines.push('', 'Already got:');
+    checked.forEach(i => lines.push(`- ${i.qty} ${i.unit} ${i.name}`));
+  }
+  return lines.join('\n');
 }
 
 /* ── Toast ───────────────────────────────────────────────── */
