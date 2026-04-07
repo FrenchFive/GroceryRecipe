@@ -35,12 +35,14 @@ html, body {
 
 /* ── Top header ──────────────────────────────────────────── */
 #top-header {
-  height: var(--header-h);
+  height: calc(var(--header-h) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
   background: var(--green);
   color: #fff;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding-left: 16px;
+  padding-right: 16px;
   gap: 12px;
   flex-shrink: 0;
   box-shadow: 0 2px 4px rgba(0,0,0,.2);
@@ -88,7 +90,8 @@ html, body {
 
 /* ── Bottom nav ──────────────────────────────────────────── */
 #bottom-nav {
-  height: var(--nav-h);
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--card-bg);
   border-top: 1px solid var(--border);
   display: flex;
@@ -662,7 +665,7 @@ html, body {
   right: 0;
   background: var(--card-bg);
   border-radius: var(--radius) var(--radius) 0 0;
-  padding: 10px 16px 40px;
+  padding: 10px 16px calc(40px + env(safe-area-inset-bottom, 0px));
   max-height: 72vh;
   overflow-y: auto;
   transform: translateY(110%);
@@ -766,7 +769,7 @@ html, body {
 /* ── Toast ───────────────────────────────────────────────── */
 #toast {
   position: fixed;
-  bottom: calc(var(--nav-h) + 16px);
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
   left: 50%;
   transform: translateX(-50%) translateY(20px);
   background: #333;
@@ -829,7 +832,7 @@ html, body {
   border-radius: var(--radius) var(--radius) 0 0;
   width: 100%;
   max-width: 600px;
-  padding: 20px 16px 32px;
+  padding: 20px 16px calc(32px + env(safe-area-inset-bottom, 0px));
   max-height: 85vh;
   overflow-y: auto;
 }

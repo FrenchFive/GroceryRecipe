@@ -27,8 +27,30 @@ function getEffectiveSelIdx(nowDate) {
   return 0;
 }
 
+/* ── Navigation history (for Android back gesture) ──────── */
+let navHistory = [];
+let handlingPopState = false;
+
 /* ── Routing ─────────────────────────────────────────────── */
 function navigate(page) {
+  // Track history for back navigation
+  const isSubPage = page === 'detail' || page === 'add' || page === 'edit';
+  const wasSubPage = currentPage === 'detail' || currentPage === 'add' || currentPage === 'edit';
+
+  if (!handlingPopState) {
+    if (isSubPage && !wasSubPage) {
+      // Entering a sub-page from a main page: push state
+      navHistory.push(currentPage);
+      history.pushState({ page }, '', '');
+    } else if (!isSubPage && wasSubPage) {
+      // Going back to a main page from sub-page: replace state
+      history.replaceState({ page }, '', '');
+    } else if (!isSubPage && !wasSubPage && currentPage !== page) {
+      // Switching between main tabs: replace state (no back needed)
+      history.replaceState({ page }, '', '');
+    }
+  }
+
   currentPage = page;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -750,6 +772,23 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('recipe-search').addEventListener('input', e => {
     renderRecipes(e.target.value);
   });
+
+  // Handle Android back gesture / browser back button
+  window.addEventListener('popstate', () => {
+    const prevPage = navHistory.pop();
+    if (prevPage) {
+      handlingPopState = true;
+      navigate(prevPage);
+      handlingPopState = false;
+    } else {
+      // No more history – push state back so next back will also be caught
+      // (prevents app from closing on first back press from a main page)
+      history.pushState(null, '', '');
+    }
+  });
+  // Set initial history state so popstate fires instead of closing the app
+  history.replaceState({ page: 'recipes' }, '', '');
+  history.pushState(null, '', '');
 
   // Register service worker (skip inside Capacitor – assets are bundled in the APK)
   if ('serviceWorker' in navigator && !window.Capacitor) {
