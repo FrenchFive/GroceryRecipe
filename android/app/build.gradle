@@ -14,8 +14,10 @@ android {
         applicationId "com.groceryrecipe.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (System.getenv("VERSION_CODE") ?: "100").toInteger()
-        versionName (System.getenv("VERSION_NAME") ?: "0.1.0")
+        def code = (System.getenv("VERSION_CODE") ?: "100").toInteger()
+        def name = System.getenv("VERSION_NAME") ?: "0.1.0"
+        versionCode code
+        versionName name
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
