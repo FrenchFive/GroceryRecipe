@@ -5,7 +5,6 @@ const ASSETS = [
   './css/style.css',
   './js/db.js',
   './js/app.js',
-  './js/lucide.min.js',
   './manifest.json'
 ];
 
