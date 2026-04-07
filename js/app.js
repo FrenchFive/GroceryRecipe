@@ -27,8 +27,30 @@ function getEffectiveSelIdx(nowDate) {
   return 0;
 }
 
+/* ── Navigation history (for Android back gesture) ──────── */
+let navHistory = [];
+let handlingPopState = false;
+
 /* ── Routing ─────────────────────────────────────────────── */
 function navigate(page) {
+  // Track history for back navigation
+  const isSubPage = page === 'detail' || page === 'add' || page === 'edit';
+  const wasSubPage = currentPage === 'detail' || currentPage === 'add' || currentPage === 'edit';
+
+  if (!handlingPopState) {
+    if (isSubPage && !wasSubPage) {
+      // Entering a sub-page from a main page: push state
+      navHistory.push(currentPage);
+      history.pushState({ page }, '', '');
+    } else if (!isSubPage && wasSubPage) {
+      // Going back to a main page from sub-page: replace state
+      history.replaceState({ page }, '', '');
+    } else if (!isSubPage && !wasSubPage && currentPage !== page) {
+      // Switching between main tabs: replace state (no back needed)
+      history.replaceState({ page }, '', '');
+    }
+  }
+
   currentPage = page;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -44,6 +66,7 @@ function navigate(page) {
     recipes:  '🥘 Recipes',
     shopping: '🛒 Shopping List',
     planner:  '📅 Weekly Planner',
+    profile:  '👤 Profile',
     detail:   '🍽 Recipe',
     add:      '✏️ Add Recipe',
     edit:     '✏️ Edit Recipe'
@@ -53,13 +76,14 @@ function navigate(page) {
   // show/hide back & add buttons
   const inDetail = page === 'detail' || page === 'add' || page === 'edit';
   document.getElementById('back-btn').style.display = inDetail ? 'flex' : 'none';
-  document.getElementById('btn-add-recipe').style.display = inDetail ? 'none' : 'flex';
+  document.getElementById('btn-add-recipe').style.display = (inDetail || page === 'profile') ? 'none' : 'flex';
   document.getElementById('bottom-nav').style.display = inDetail ? 'none' : 'flex';
 
   // Render the page content
   if (page === 'recipes')  renderRecipes();
   if (page === 'shopping') renderShopping();
   if (page === 'planner')  renderPlanner();
+  if (page === 'profile')  renderProfile();
   if (page === 'detail')   renderDetail(detailRecipeId);
   if (page === 'add')      renderAddForm(null);
   if (page === 'edit')     renderAddForm(detailRecipeId);
@@ -221,7 +245,7 @@ function renderAddForm(editId) {
           </div>
           <div class="form-group">
             <label>Base Servings *</label>
-            <input type="number" id="f-servings" min="1" value="${r ? r.servings : 2}" required>
+            <input type="number" id="f-servings" min="1" value="${r ? r.servings : PrefsDB.get('defaultServings')}" required>
           </div>
         </div>
       </div>
@@ -697,6 +721,165 @@ function closeMealPicker() {
   pickerCtx = null;
 }
 
+/* ── Theme ──────────────────────────────────────────────── */
+function applyTheme() {
+  const dark  = PrefsDB.get('darkMode');
+  const key   = PrefsDB.get('accentColor') || 'green';
+  const color = ACCENT_COLORS[key] || ACCENT_COLORS.green;
+  const root  = document.documentElement;
+
+  root.setAttribute('data-theme', dark ? 'dark' : 'light');
+
+  // Apply accent color CSS variables
+  root.style.setProperty('--green',       dark ? color.darkMain  : color.main);
+  root.style.setProperty('--green-light', dark ? color.darkLight : color.light);
+  root.style.setProperty('--green-bg',    dark ? color.darkBg    : color.bg);
+
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) metaTheme.content = dark ? '#1e1e1e' : color.main;
+}
+
+/* ── Profile page ───────────────────────────────────────── */
+function renderProfile() {
+  const page  = document.getElementById('page-profile');
+  const prefs = PrefsDB.all();
+  const recipeCount = RecipeDB.all().length;
+  const shopCount   = ShoppingDB.count();
+
+  page.innerHTML = `
+    <div class="profile-header">
+      <div class="profile-avatar">🥘</div>
+      <div class="profile-app-name">GroceryRecipe</div>
+      <div class="profile-version">v0.0.1</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="settings-section">
+      <div class="settings-section-title">Overview</div>
+      <div class="card">
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Recipes saved</span>
+          </div>
+          <span style="font-weight:700;color:var(--green);">${recipeCount}</span>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Shopping items</span>
+          </div>
+          <span style="font-weight:700;color:var(--green);">${shopCount}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Appearance -->
+    <div class="settings-section">
+      <div class="settings-section-title">Appearance</div>
+      <div class="card">
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Dark Mode</span>
+            <span class="setting-label-desc">Easier on the eyes at night</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="pref-dark-mode" ${prefs.darkMode ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+          <div class="setting-label">
+            <span class="setting-label-text">Accent Color</span>
+            <span class="setting-label-desc">Personalize the app's look</span>
+          </div>
+          <div class="color-picker" id="color-picker">
+            ${Object.entries(ACCENT_COLORS).map(([key, c]) => `
+              <button class="color-swatch${prefs.accentColor === key ? ' active' : ''}"
+                      data-color="${key}"
+                      style="--swatch-color:${c.main};"
+                      aria-label="${c.label}"
+                      title="${c.label}">
+                ${prefs.accentColor === key ? '<span class="swatch-check">&#10003;</span>' : ''}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cooking -->
+    <div class="settings-section">
+      <div class="settings-section-title">Cooking</div>
+      <div class="card">
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Default Servings</span>
+            <span class="setting-label-desc">Pre-fill when adding recipes</span>
+          </div>
+          <select class="setting-select" id="pref-default-servings">
+            ${[1,2,3,4,5,6,8,10].map(n =>
+              `<option value="${n}" ${prefs.defaultServings === n ? 'selected' : ''}>${n}</option>`
+            ).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data -->
+    <div class="settings-section">
+      <div class="settings-section-title">Data</div>
+      <div class="card">
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Reset Preferences</span>
+            <span class="setting-label-desc">Restore default settings</span>
+          </div>
+          <button class="btn btn-outline" id="btn-reset-prefs" style="font-size:.8rem;padding:6px 14px;">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="profile-footer">
+      Made with love for home cooks
+    </div>
+  `;
+
+  // Dark mode toggle
+  document.getElementById('pref-dark-mode').addEventListener('change', e => {
+    PrefsDB.set('darkMode', e.target.checked);
+    applyTheme();
+  });
+
+  // Accent color picker
+  document.querySelectorAll('#color-picker .color-swatch').forEach(btn => {
+    btn.addEventListener('click', () => {
+      PrefsDB.set('accentColor', btn.dataset.color);
+      applyTheme();
+      // Update active swatch visually
+      document.querySelectorAll('#color-picker .color-swatch').forEach(s => {
+        s.classList.remove('active');
+        s.innerHTML = '';
+      });
+      btn.classList.add('active');
+      btn.innerHTML = '<span class="swatch-check">&#10003;</span>';
+    });
+  });
+
+  // Default servings
+  document.getElementById('pref-default-servings').addEventListener('change', e => {
+    PrefsDB.set('defaultServings', parseInt(e.target.value, 10));
+    showToast('Default servings updated');
+  });
+
+  // Reset prefs
+  document.getElementById('btn-reset-prefs').addEventListener('click', () => {
+    if (!confirm('Reset all preferences to defaults?')) return;
+    PrefsDB.reset();
+    applyTheme();
+    renderProfile();
+    showToast('Preferences reset');
+  });
+}
+
 /* ── Badge ───────────────────────────────────────────────── */
 function updateShoppingBadge() {
   const n = ShoppingDB.count();
@@ -734,6 +917,7 @@ function escHtml(str) {
 /* ── Boot ────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   seedIfEmpty();
+  applyTheme();
 
   // Bottom nav
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -750,6 +934,23 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('recipe-search').addEventListener('input', e => {
     renderRecipes(e.target.value);
   });
+
+  // Handle Android back gesture / browser back button
+  window.addEventListener('popstate', () => {
+    const prevPage = navHistory.pop();
+    if (prevPage) {
+      handlingPopState = true;
+      navigate(prevPage);
+      handlingPopState = false;
+    } else {
+      // No more history – push state back so next back will also be caught
+      // (prevents app from closing on first back press from a main page)
+      history.pushState(null, '', '');
+    }
+  });
+  // Set initial history state so popstate fires instead of closing the app
+  history.replaceState({ page: 'recipes' }, '', '');
+  history.pushState(null, '', '');
 
   // Register service worker (skip inside Capacitor – assets are bundled in the APK)
   if ('serviceWorker' in navigator && !window.Capacitor) {
