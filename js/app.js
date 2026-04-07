@@ -2,6 +2,14 @@
  * app.js – SPA routing, view rendering, event wiring
  */
 
+/* ── Lucide icon helper ─────────────────────────────────── */
+function icon(name, size = 20, cls = '') {
+  return `<i data-lucide="${name}" class="lucide ${cls}" style="width:${size}px;height:${size}px;"></i>`;
+}
+function refreshIcons() {
+  if (window.lucide) lucide.createIcons();
+}
+
 /* ── State ───────────────────────────────────────────────── */
 let currentPage          = 'recipes';
 let detailRecipeId       = null;   // recipe open in detail view
@@ -62,16 +70,26 @@ function navigate(page) {
   if (navBtn) navBtn.classList.add('active');
 
   // Update header
-  const titles = {
-    recipes:  '🥘 Recipes',
-    shopping: '🛒 Shopping List',
-    planner:  '📅 Weekly Planner',
-    profile:  '👤 Profile',
-    detail:   '🍽 Recipe',
-    add:      '✏️ Add Recipe',
-    edit:     '✏️ Edit Recipe'
+  const titleIcons = {
+    recipes:  'chef-hat',
+    shopping: 'shopping-cart',
+    planner:  'calendar-days',
+    profile:  'user',
+    detail:   'utensils',
+    add:      'plus-circle',
+    edit:     'pencil'
   };
-  document.getElementById('header-title').textContent = titles[page] || 'GroceryRecipe';
+  const titleTexts = {
+    recipes:  'Recipes',
+    shopping: 'Shopping List',
+    planner:  'Weekly Planner',
+    profile:  'Profile',
+    detail:   'Recipe',
+    add:      'Add Recipe',
+    edit:     'Edit Recipe'
+  };
+  const hdr = document.getElementById('header-title');
+  hdr.innerHTML = `${icon(titleIcons[page] || 'home', 20, 'header-icon')} ${titleTexts[page] || 'GroceryRecipe'}`;
 
   // show/hide back & add buttons
   const inDetail = page === 'detail' || page === 'add' || page === 'edit';
@@ -89,6 +107,7 @@ function navigate(page) {
   if (page === 'edit')     renderAddForm(detailRecipeId);
 
   updateShoppingBadge();
+  refreshIcons();
 }
 
 function goBack() {
@@ -111,7 +130,7 @@ function renderRecipes(filter = '') {
   if (list.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">🍳</div>
+        <div class="empty-icon">${icon('cooking-pot', 48)}</div>
         <p>${filter ? 'No recipes match your search.' : 'No recipes yet. Tap + to add one!'}</p>
       </div>`;
     return;
@@ -124,7 +143,7 @@ function renderRecipes(filter = '') {
         <h3>${escHtml(r.name)}</h3>
         <p>${r.ingredients.length} ingredients &bull; serves ${r.servings}</p>
       </div>
-      <span class="recipe-arrow">›</span>
+      <span class="recipe-arrow">${icon('chevron-right', 18)}</span>
     </div>
   `).join('');
 
@@ -157,13 +176,13 @@ function renderDetail(id) {
       <div class="servings-row">
         <label>Servings:</label>
         <div class="qty-ctrl">
-          <button id="qty-minus" aria-label="Decrease">−</button>
+          <button id="qty-minus" aria-label="Decrease">${icon('minus', 16)}</button>
           <span class="qty-val" id="qty-val">${r.servings}</span>
-          <button id="qty-plus"  aria-label="Increase">+</button>
+          <button id="qty-plus"  aria-label="Increase">${icon('plus', 16)}</button>
         </div>
       </div>
       <button class="btn btn-primary btn-full" id="btn-add-to-shop">
-        🛒 Add to Shopping List
+        ${icon('shopping-cart', 18)} Add to Shopping List
       </button>
     </div>
 
@@ -184,8 +203,8 @@ function renderDetail(id) {
 
     <!-- Actions -->
     <div class="flex-row mt-16" style="padding-bottom:24px;">
-      <button class="btn btn-outline" style="flex:1;" id="btn-edit-recipe">✏️ Edit</button>
-      <button class="btn btn-danger"  style="flex:1;" id="btn-delete-recipe">🗑 Delete</button>
+      <button class="btn btn-outline" style="flex:1;" id="btn-edit-recipe">${icon('pencil', 16)} Edit</button>
+      <button class="btn btn-danger"  style="flex:1;" id="btn-delete-recipe">${icon('trash-2', 16)} Delete</button>
     </div>
   `;
 
@@ -216,7 +235,7 @@ function renderDetail(id) {
     const mult = servings / r.servings;
     ShoppingDB.addFromRecipe(r, mult);
     updateShoppingBadge();
-    showToast(`${r.name} added to shopping list 🛒`);
+    showToast(`${r.name} added to shopping list`);
   });
 
   document.getElementById('btn-edit-recipe').addEventListener('click', () => navigate('edit'));
@@ -256,9 +275,9 @@ function renderAddForm(editId) {
           <div id="photo-input-wrap" style="${r && r.photo ? '' : 'display:none'}">
             <input type="file" id="f-photo" accept="image/*" capture="environment" style="display:none">
             <div id="photo-preview" class="photo-preview ${r && r.photo ? 'has-photo' : ''}">
-              ${r && r.photo ? `<img src="${r.photo}" alt="Recipe photo">` : '<span class="photo-placeholder">📷 Tap to take or choose a photo</span>'}
+              ${r && r.photo ? `<img src="${r.photo}" alt="Recipe photo">` : `<span class="photo-placeholder">${icon('camera', 20)} Tap to take or choose a photo</span>`}
             </div>
-            <button type="button" class="btn btn-outline btn-full mt-8" id="clear-photo-btn" style="${r && r.photo ? '' : 'display:none'}">✕ Remove Photo</button>
+            <button type="button" class="btn btn-outline btn-full mt-8" id="clear-photo-btn" style="${r && r.photo ? '' : 'display:none'}">${icon('x', 16)} Remove Photo</button>
           </div>
         </div>
         <div class="form-group">
@@ -277,18 +296,18 @@ function renderAddForm(editId) {
           <span></span>
         </div>
         <div id="ing-rows"></div>
-        <button type="button" class="btn btn-outline btn-full mt-8" id="add-ing-btn">+ Add Ingredient</button>
+        <button type="button" class="btn btn-outline btn-full mt-8" id="add-ing-btn">${icon('plus', 16)} Add Ingredient</button>
       </div>
 
       <!-- Steps -->
       <div class="card">
         <div class="section-title">Steps</div>
         <div id="step-rows"></div>
-        <button type="button" class="btn btn-outline btn-full mt-8" id="add-step-btn">+ Add Step</button>
+        <button type="button" class="btn btn-outline btn-full mt-8" id="add-step-btn">${icon('plus', 16)} Add Step</button>
       </div>
 
       <button type="submit" class="btn btn-primary btn-full mt-16" style="margin-bottom:32px;">
-        ${r ? '💾 Save Changes' : '✅ Add Recipe'}
+        ${r ? `${icon('save', 16)} Save Changes` : `${icon('check', 16)} Add Recipe`}
       </button>
     </form>
   `;
@@ -303,7 +322,7 @@ function renderAddForm(editId) {
       <input type="text"   class="ing-name" placeholder="Flour"  value="${escHtml(name)}">
       <input type="text"   class="ing-qty"  placeholder="200"    value="${escHtml(qty)}">
       <input type="text"   class="ing-unit" placeholder="g"      value="${escHtml(unit)}">
-      <button type="button" class="remove-btn" aria-label="Remove">✕</button>
+      <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
     `;
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
     ingContainer.appendChild(div);
@@ -314,7 +333,7 @@ function renderAddForm(editId) {
     div.className = 'step-row';
     div.innerHTML = `
       <textarea class="step-text" placeholder="Describe this step…">${escHtml(text)}</textarea>
-      <button type="button" class="remove-btn" aria-label="Remove">✕</button>
+      <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
     `;
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
     stepContainer.appendChild(div);
@@ -382,7 +401,8 @@ function renderAddForm(editId) {
   clearBtn.addEventListener('click', () => {
     pendingPhoto = null;
     photoInput.value = '';
-    preview.innerHTML = '<span class="photo-placeholder">📷 Tap to take or choose a photo</span>';
+    preview.innerHTML = `<span class="photo-placeholder">${icon('camera', 20)} Tap to take or choose a photo</span>`;
+    refreshIcons();
     preview.classList.remove('has-photo');
     clearBtn.style.display = 'none';
   });
@@ -417,7 +437,7 @@ function renderAddForm(editId) {
 
     const saved = RecipeDB.save(recipe);
     detailRecipeId = saved.id;
-    showToast(r ? 'Recipe updated ✅' : 'Recipe added ✅');
+    showToast(r ? 'Recipe updated' : 'Recipe added');
     navigate('detail');
   });
 }
@@ -427,8 +447,8 @@ function renderShopping() {
   const page   = document.getElementById('page-shopping');
   const tabs   = `
     <div class="shop-tabs">
-      <button class="shop-tab${shoppingView === 'current' ? ' active' : ''}" data-view="current">🛒 Current List</button>
-      <button class="shop-tab${shoppingView === 'next'    ? ' active' : ''}" data-view="next">📅 Next Week</button>
+      <button class="shop-tab${shoppingView === 'current' ? ' active' : ''}" data-view="current">${icon('shopping-cart', 16)} Current List</button>
+      <button class="shop-tab${shoppingView === 'next'    ? ' active' : ''}" data-view="next">${icon('calendar-days', 16)} Next Week</button>
     </div>`;
 
   if (shoppingView === 'next') {
@@ -440,6 +460,7 @@ function renderShopping() {
   page.querySelectorAll('.shop-tab').forEach(tab => {
     tab.addEventListener('click', () => { shoppingView = tab.dataset.view; renderShopping(); });
   });
+  refreshIcons();
 }
 
 function renderShoppingCurrent(page, tabs) {
@@ -455,21 +476,21 @@ function renderShoppingCurrent(page, tabs) {
         <span class="shop-source">from ${escHtml(i.source)}</span>
       </label>
       <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
-      <button class="shop-remove" data-id="${i.id}" aria-label="Remove">✕</button>
+      <button class="shop-remove" data-id="${i.id}" aria-label="Remove">${icon('x', 14)}</button>
     </div>`;
   }
 
   let body;
   if (items.length === 0) {
     body = `<div class="empty-state">
-      <div class="empty-icon">🛒</div>
+      <div class="empty-icon">${icon('shopping-cart', 48)}</div>
       <p>Your shopping list is empty.<br>Add ingredients from a recipe!</p>
     </div>`;
   } else {
     const actions = `
       <div class="flex-row" style="margin-bottom:14px;justify-content:flex-end;">
-        ${checked.length ? `<button class="btn btn-outline" id="btn-clear-checked" style="font-size:.85rem;padding:8px 14px;">✓ Remove checked</button>` : ''}
-        <button class="btn btn-danger" id="btn-clear-all" style="font-size:.85rem;padding:8px 14px;">🗑 Clear all</button>
+        ${checked.length ? `<button class="btn btn-outline" id="btn-clear-checked" style="font-size:.85rem;padding:8px 14px;">${icon('check', 14)} Remove checked</button>` : ''}
+        <button class="btn btn-danger" id="btn-clear-all" style="font-size:.85rem;padding:8px 14px;">${icon('trash-2', 14)} Clear all</button>
       </div>`;
     body = actions + `
       <div class="card" id="shop-list">
@@ -541,7 +562,7 @@ function renderShoppingNextWeek(page, tabs) {
   let body;
   if (meals.length === 0) {
     body = `<div class="empty-state">
-      <div class="empty-icon">📅</div>
+      <div class="empty-icon">${icon('calendar-days', 48)}</div>
       <p>No meals planned for next week.<br>Go to the Planner to schedule some!</p>
     </div>`;
   } else {
@@ -563,9 +584,9 @@ function renderShoppingNextWeek(page, tabs) {
 
     body = `
       <div class="next-week-header">
-        <span>📅 ${escHtml(label)}</span>
+        <span>${icon('calendar-days', 16)} ${escHtml(label)}</span>
         <button class="btn btn-primary" id="btn-add-next-week" style="font-size:.8rem;padding:8px 14px;">
-          🛒 Add to shopping list
+          ${icon('shopping-cart', 14)} Add to shopping list
         </button>
       </div>
       <div class="card">
@@ -588,7 +609,7 @@ function renderShoppingNextWeek(page, tabs) {
       updateShoppingBadge();
       shoppingView = 'current';
       renderShopping();
-      showToast(`Next week's groceries added to shopping list 🛒`);
+      showToast(`Next week's groceries added to shopping list`);
     });
   }
 }
@@ -600,7 +621,7 @@ function renderPlanner() {
   const dates   = getWeekDates(wk);
   const nowDate = new Date(); nowDate.setHours(0,0,0,0);
 
-  const mealIcons = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' };
+  const mealIcons = { breakfast: icon('sunrise', 18), lunch: icon('sun', 18), dinner: icon('moon', 18) };
   const page      = document.getElementById('page-planner');
 
   const selIdx  = getEffectiveSelIdx(nowDate);
@@ -636,10 +657,10 @@ function renderPlanner() {
              <span class="cal-card-name">${escHtml(recipe.name)}</span>
              <span class="cal-card-meta">${recipe.ingredients.length} ingredients · serves ${recipe.servings}</span>
            </div>
-           <span class="cal-card-arrow">›</span>
+           <span class="cal-card-arrow">${icon('chevron-right', 16)}</span>
          </div>`
       : `<div class="cal-card-add">
-           <span class="cal-card-add-icon">+</span>
+           <span class="cal-card-add-icon">${icon('plus', 20)}</span>
            <span>Add ${meal}</span>
          </div>`;
 
@@ -649,7 +670,7 @@ function renderPlanner() {
         <span class="cal-meal-card-label">${meal.charAt(0).toUpperCase() + meal.slice(1)}</span>
         ${recipe ? `<button class="cal-chip-clear"
                       data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
-                      aria-label="Clear ${meal}">×</button>` : ''}
+                      aria-label="Clear ${meal}">${icon('x', 14)}</button>` : ''}
       </div>
       <div class="cal-meal-card-body"
            data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}"
@@ -663,12 +684,12 @@ function renderPlanner() {
 
   page.innerHTML = `
     <div class="cal-nav">
-      <button class="cal-nav-btn" id="planner-prev" aria-label="Previous week">‹</button>
+      <button class="cal-nav-btn" id="planner-prev" aria-label="Previous week">${icon('chevron-left', 20)}</button>
       <div class="cal-nav-center">
         <div class="cal-nav-label">${formatWeekRange(wk)}</div>
         ${todayBtn}
       </div>
-      <button class="cal-nav-btn" id="planner-next" aria-label="Next week">›</button>
+      <button class="cal-nav-btn" id="planner-next" aria-label="Next week">${icon('chevron-right', 20)}</button>
     </div>
 
     <div class="cal-week-strip" role="tablist" aria-label="Day selector">
@@ -680,9 +701,9 @@ function renderPlanner() {
         <span class="cal-detail-date">${escHtml(selHeading)}</span>
         <div class="cal-detail-actions">
           <button class="btn btn-outline" id="btn-plan-to-shop"
-                  style="font-size:.75rem;padding:5px 10px;">🛒 Add week</button>
+                  style="font-size:.75rem;padding:5px 10px;">${icon('shopping-cart', 14)} Add week</button>
           <button class="btn btn-outline" id="btn-clear-week"
-                  style="font-size:.75rem;padding:5px 10px;border-color:var(--red);color:var(--red);">🗑 Clear</button>
+                  style="font-size:.75rem;padding:5px 10px;border-color:var(--red);color:var(--red);">${icon('trash-2', 14)} Clear</button>
         </div>
       </div>
       <div class="cal-meal-cards">
@@ -743,7 +764,7 @@ function renderPlanner() {
       });
     });
     updateShoppingBadge();
-    showToast(count > 0 ? `${count} meal(s) added to shopping list 🛒` : 'No meals planned yet');
+    showToast(count > 0 ? `${count} meal(s) added to shopping list` : 'No meals planned yet');
   });
 
   /* ── Clear week ──── */
@@ -765,7 +786,7 @@ function openMealPicker(wk, day, meal) {
   const list    = document.getElementById('meal-picker-list');
   list.innerHTML = `
     <button class="meal-picker-item meal-picker-clear" data-id="">
-      <span class="mpi-emoji">✕</span>
+      <span class="mpi-emoji">${icon('x', 18)}</span>
       <span class="mpi-name">None (clear)</span>
     </button>
     ${recipes.map(r => `
@@ -784,6 +805,7 @@ function openMealPicker(wk, day, meal) {
     });
   });
 
+  refreshIcons();
   const picker   = document.getElementById('meal-picker');
   const backdrop = document.getElementById('meal-picker-backdrop');
   picker.classList.add('open');
@@ -819,7 +841,7 @@ function renderProfile() {
 
   page.innerHTML = `
     <div class="profile-header">
-      <div class="profile-avatar">🥘</div>
+      <div class="profile-avatar">${icon('chef-hat', 36)}</div>
       <div class="profile-app-name">GroceryRecipe</div>
       <div class="profile-version">v0.0.1</div>
       <div class="profile-stats">
