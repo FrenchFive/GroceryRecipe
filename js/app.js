@@ -152,6 +152,11 @@ function renderDetail(id) {
       </ol>
     </div>` : ''}
 
+    <!-- Share -->
+    <div class="flex-row" style="margin-bottom:14px;justify-content:flex-end;flex-wrap:wrap;gap:8px;">
+      ${ShareComponent.html('recipe')}
+    </div>
+
     <!-- Actions -->
     <div class="flex-row mt-16" style="padding-bottom:24px;">
       <button class="btn btn-outline" style="flex:1;" id="btn-edit-recipe">✏️ Edit</button>
@@ -191,6 +196,21 @@ function renderDetail(id) {
 
   document.getElementById('btn-edit-recipe').addEventListener('click', () => navigate('edit'));
   document.getElementById('btn-delete-recipe').addEventListener('click', () => deleteRecipe(id));
+
+  ShareComponent.bind('recipe', r.name, () => {
+    const mult = servings / r.servings;
+    let lines = [`${r.emoji || '🍽'} ${r.name} (${servings} serving${servings > 1 ? 's' : ''})`, '', 'Ingredients:'];
+    r.ingredients.forEach(ing => {
+      const qty = parseFloat(ing.qty);
+      const scaledQty = isNaN(qty) ? ing.qty : String(Math.round(qty * mult * 100) / 100);
+      lines.push(`- ${scaledQty} ${ing.unit} ${ing.name}`);
+    });
+    if (r.steps && r.steps.length) {
+      lines.push('', 'Instructions:');
+      r.steps.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
+    }
+    return lines.join('\n');
+  });
 }
 
 function deleteRecipe(id) {
@@ -473,6 +493,9 @@ function renderShoppingNextWeek(page, tabs) {
           🛒 Add to shopping list
         </button>
       </div>
+      <div class="flex-row" style="margin-bottom:14px;justify-content:flex-end;flex-wrap:wrap;gap:8px;">
+        ${ShareComponent.html('nw')}
+      </div>
       <div class="card">
         ${ingList.map(i => `
           <div class="shop-item-preview">
@@ -496,6 +519,12 @@ function renderShoppingNextWeek(page, tabs) {
       showToast(`Next week's groceries added to shopping list 🛒`);
     });
   }
+
+  ShareComponent.bind('nw', 'Next Week Grocery List', () => {
+    let lines = [`Next Week Grocery List (${label})`, ''];
+    ingList.forEach(i => lines.push(`- ${i.qty} ${i.unit} ${i.name}`));
+    return lines.join('\n');
+  });
 }
 
 /* ── Planner page ────────────────────────────────────────── */
