@@ -1056,52 +1056,86 @@ img.mpi-emoji {
 /* ── Profile page ───────────────────────────────────────── */
 .profile-header {
   text-align: center;
-  padding: 24px 16px 20px;
+  padding: 28px 16px 24px;
   background: var(--green-bg);
   border: var(--border-w) solid var(--border);
   box-shadow: var(--shadow);
+  border-radius: var(--radius);
   margin-bottom: 20px;
 }
 .profile-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: var(--radius);
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
   background: var(--green);
   border: var(--border-w) solid var(--border);
   box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.5rem;
-  margin: 0 auto 12px;
+  font-size: 2.2rem;
+  margin: 0 auto 10px;
 }
 .profile-app-name {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   font-weight: 900;
   color: var(--text);
   text-transform: uppercase;
   letter-spacing: .04em;
 }
 .profile-version {
-  font-size: .8rem;
+  font-size: .75rem;
   color: var(--text-muted);
   margin-top: 2px;
   font-weight: 700;
 }
+.profile-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 2px solid var(--border);
+}
+.profile-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+.profile-stat-num {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--green);
+  line-height: 1;
+}
+.profile-stat-label {
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-top: 4px;
+}
+.profile-stat-divider {
+  width: 2px;
+  height: 32px;
+  background: var(--border);
+  flex-shrink: 0;
+}
 
 .settings-section {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 .settings-section-title {
-  font-size: .75rem;
+  font-size: .7rem;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: .08em;
-  color: var(--text);
+  color: var(--text-muted);
   padding: 0 4px;
   margin-bottom: 8px;
-  border-bottom: 2px solid var(--border);
-  padding-bottom: 4px;
 }
 
 .setting-row {
@@ -1109,24 +1143,24 @@ img.mpi-emoji {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 25%, transparent);
 }
 .setting-row:last-child { border-bottom: none; }
 
 .setting-label {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   flex: 1;
   min-width: 0;
 }
 .setting-label-text {
-  font-size: .95rem;
+  font-size: .9rem;
   font-weight: 700;
   color: var(--text);
 }
 .setting-label-desc {
-  font-size: .75rem;
+  font-size: .72rem;
   color: var(--text-muted);
   font-weight: 600;
 }
@@ -1185,10 +1219,9 @@ img.mpi-emoji {
 
 .profile-footer {
   text-align: center;
-  padding: 20px 16px;
+  padding: 24px 16px 32px;
   color: var(--text-muted);
-  font-size: .8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .04em;
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .03em;
 }

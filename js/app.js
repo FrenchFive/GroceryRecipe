@@ -822,31 +822,34 @@ function renderProfile() {
       <div class="profile-avatar">🥘</div>
       <div class="profile-app-name">GroceryRecipe</div>
       <div class="profile-version">v0.0.1</div>
-    </div>
-
-    <!-- Stats -->
-    <div class="settings-section">
-      <div class="settings-section-title">Overview</div>
-      <div class="card">
-        <div class="setting-row">
-          <div class="setting-label">
-            <span class="setting-label-text">Recipes saved</span>
-          </div>
-          <span style="font-weight:700;color:var(--green);">${recipeCount}</span>
+      <div class="profile-stats">
+        <div class="profile-stat">
+          <span class="profile-stat-num">${recipeCount}</span>
+          <span class="profile-stat-label">Recipes</span>
         </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <span class="setting-label-text">Shopping items</span>
-          </div>
-          <span style="font-weight:700;color:var(--green);">${shopCount}</span>
+        <div class="profile-stat-divider"></div>
+        <div class="profile-stat">
+          <span class="profile-stat-num">${shopCount}</span>
+          <span class="profile-stat-label">Shopping Items</span>
         </div>
       </div>
     </div>
 
-    <!-- Appearance -->
+    <!-- Settings -->
     <div class="settings-section">
-      <div class="settings-section-title">Appearance</div>
+      <div class="settings-section-title">Settings</div>
       <div class="card">
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Default Servings</span>
+            <span class="setting-label-desc">Pre-fill when adding recipes</span>
+          </div>
+          <select class="setting-select" id="pref-default-servings">
+            ${[1,2,3,4,5,6,8,10].map(n =>
+              `<option value="${n}" ${prefs.defaultServings === n ? 'selected' : ''}>${n}</option>`
+            ).join('')}
+          </select>
+        </div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
           <div class="setting-label">
             <span class="setting-label-text">Accent Color</span>
@@ -863,24 +866,6 @@ function renderProfile() {
               </button>
             `).join('')}
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Cooking -->
-    <div class="settings-section">
-      <div class="settings-section-title">Cooking</div>
-      <div class="card">
-        <div class="setting-row">
-          <div class="setting-label">
-            <span class="setting-label-text">Default Servings</span>
-            <span class="setting-label-desc">Pre-fill when adding recipes</span>
-          </div>
-          <select class="setting-select" id="pref-default-servings">
-            ${[1,2,3,4,5,6,8,10].map(n =>
-              `<option value="${n}" ${prefs.defaultServings === n ? 'selected' : ''}>${n}</option>`
-            ).join('')}
-          </select>
         </div>
       </div>
     </div>
