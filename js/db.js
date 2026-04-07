@@ -140,6 +140,57 @@ const ShoppingDB = {
   count() { return this.all().filter(i => !i.checked).length; }
 };
 
+/* ── Custom (manual) shopping items ─────────────────────── */
+const DB_CUSTOM_ITEMS = 'gr_custom_items';
+
+const CustomItemsDB = {
+  all() { return load(DB_CUSTOM_ITEMS, []); },
+
+  add(name, qty, unit) {
+    const list = this.all();
+    list.push({ id: uid(), name, qty: qty || '', unit: unit || '', checked: false });
+    save(DB_CUSTOM_ITEMS, list);
+  },
+
+  toggle(id) {
+    const list = this.all();
+    const item = list.find(i => i.id === id);
+    if (item) { item.checked = !item.checked; save(DB_CUSTOM_ITEMS, list); }
+  },
+
+  remove(id) { save(DB_CUSTOM_ITEMS, this.all().filter(i => i.id !== id)); },
+
+  clearChecked() { save(DB_CUSTOM_ITEMS, this.all().filter(i => !i.checked)); },
+
+  count() { return this.all().filter(i => !i.checked).length; }
+};
+
+/* ── Recurring items (auto-added every week) ────────────── */
+const DB_RECURRING = 'gr_recurring_items';
+
+const RecurringDB = {
+  all() { return load(DB_RECURRING, []); },
+
+  add(name, qty, unit) {
+    const list = this.all();
+    list.push({ id: uid(), name, qty: qty || '', unit: unit || '' });
+    save(DB_RECURRING, list);
+  },
+
+  remove(id) { save(DB_RECURRING, this.all().filter(i => i.id !== id)); },
+
+  update(id, name, qty, unit) {
+    const list = this.all();
+    const item = list.find(i => i.id === id);
+    if (item) {
+      item.name = name;
+      item.qty = qty || '';
+      item.unit = unit || '';
+      save(DB_RECURRING, list);
+    }
+  }
+};
+
 /* ── Weekly planner ──────────────────────────────────────── */
 const PlanDB = {
   /** Empty plan object for one week – each meal is an array of recipe IDs. */

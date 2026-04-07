@@ -480,6 +480,63 @@ function renderShopping() {
   refreshIcons();
 }
 
+function buildShoppingListText(weekOffset) {
+  const d = new Date();
+  d.setDate(d.getDate() + weekOffset * 7);
+  const wk = weekKey(d);
+  const label = formatWeekRange(wk);
+  const items = ingredientsForWeek(wk);
+  const checkedKey = `shop_checked_${wk}`;
+  const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
+  const customItems = CustomItemsDB.all();
+  const recurringItems = RecurringDB.all();
+
+  let lines = [];
+  lines.push(`Shopping List - ${label}`);
+  lines.push('');
+
+  // Recipe items
+  const uncheckedRecipe = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+  if (uncheckedRecipe.length > 0) {
+    lines.push('From Recipes:');
+    uncheckedRecipe.forEach(i => {
+      const qty = [i.qty, i.unit].filter(Boolean).join(' ');
+      lines.push(`  [ ] ${i.name}${qty ? ' - ' + qty : ''} (${i.sources.join(', ')})`);
+    });
+    lines.push('');
+  }
+
+  // Recurring items
+  const recurringCheckedKey = `shop_recurring_checked_${wk}`;
+  const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
+  const uncheckedRecurring = recurringItems.filter(i => !recurringCheckedSet.has(i.id));
+  if (uncheckedRecurring.length > 0) {
+    lines.push('Weekly Recurring:');
+    uncheckedRecurring.forEach(i => {
+      const qty = [i.qty, i.unit].filter(Boolean).join(' ');
+      lines.push(`  [ ] ${i.name}${qty ? ' - ' + qty : ''}`);
+    });
+    lines.push('');
+  }
+
+  // Custom items
+  const uncheckedCustom = customItems.filter(i => !i.checked);
+  if (uncheckedCustom.length > 0) {
+    lines.push('Other Items:');
+    uncheckedCustom.forEach(i => {
+      const qty = [i.qty, i.unit].filter(Boolean).join(' ');
+      lines.push(`  [ ] ${i.name}${qty ? ' - ' + qty : ''}`);
+    });
+    lines.push('');
+  }
+
+  if (uncheckedRecipe.length === 0 && uncheckedRecurring.length === 0 && uncheckedCustom.length === 0) {
+    lines.push('All items checked off!');
+  }
+
+  return lines.join('\n');
+}
+
 function renderShoppingWeek(page, tabs, weekOffset) {
   const d = new Date();
   d.setDate(d.getDate() + weekOffset * 7);
@@ -487,25 +544,41 @@ function renderShoppingWeek(page, tabs, weekOffset) {
   const label = formatWeekRange(wk);
   const items = ingredientsForWeek(wk);
 
-  // Load checked state from ShoppingDB (keyed by week)
+  // Load checked state (keyed by week)
   const checkedKey = `shop_checked_${wk}`;
   const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
 
-  let body;
-  if (items.length === 0) {
-    body = `<div class="empty-state">
-      <div class="empty-icon">${icon('shopping-cart', 48)}</div>
-      <p>No meals planned${weekOffset === 0 ? ' this' : ' next'} week.<br>Go to the Planner to add some!</p>
+  // Recurring items checked state (per week)
+  const recurringCheckedKey = `shop_recurring_checked_${wk}`;
+  const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
+
+  // --- Add item form ---
+  const addForm = `
+    <div class="card shop-add-form">
+      <div class="shop-add-row">
+        <input type="text" id="shop-add-name" placeholder="Add an item…" class="shop-add-input" aria-label="Item name">
+        <input type="text" id="shop-add-qty" placeholder="Qty" class="shop-add-qty" aria-label="Quantity">
+        <input type="text" id="shop-add-unit" placeholder="Unit" class="shop-add-unit" aria-label="Unit">
+        <button class="btn-icon shop-add-btn" id="shop-add-btn" aria-label="Add item">${icon('plus', 18)}</button>
+      </div>
+      <div class="shop-add-options">
+        <label class="shop-recurring-toggle">
+          <input type="checkbox" id="shop-add-recurring"> ${icon('repeat', 14)} Recurring (every week)
+        </label>
+      </div>
     </div>`;
-  } else {
+
+  // --- Recipe-based items ---
+  let recipeSection = '';
+  if (items.length > 0) {
     const unchecked = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
     const checked   = items.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
 
-    function itemHtml(i) {
+    function recipeItemHtml(i) {
       const key = i.name.toLowerCase() + '\u0000' + i.unit;
       const isChecked = checkedSet.has(key);
       const safeKey = btoa(encodeURIComponent(key));
-      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-key="${safeKey}">
+      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-key="${safeKey}" data-type="recipe">
         <input type="checkbox" id="chk-${safeKey}" ${isChecked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
         <label for="chk-${safeKey}">
           ${escHtml(i.name)}
@@ -515,19 +588,115 @@ function renderShoppingWeek(page, tabs, weekOffset) {
       </div>`;
     }
 
-    const weekLabel = `<div class="shop-week-label">${icon('calendar-days', 14)} ${escHtml(label)}</div>`;
-    body = weekLabel + `
-      <div class="card" id="shop-list">
-        ${unchecked.map(itemHtml).join('')}
+    recipeSection = `
+      <div class="shop-section-title">${icon('utensils', 14)} From Recipes</div>
+      <div class="card" id="shop-list-recipe">
+        ${unchecked.map(recipeItemHtml).join('')}
         ${checked.length && unchecked.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
-        ${checked.map(itemHtml).join('')}
+        ${checked.map(recipeItemHtml).join('')}
       </div>`;
   }
 
-  page.innerHTML = tabs + body;
+  // --- Recurring items ---
+  const recurringItems = RecurringDB.all();
+  let recurringSection = '';
+  if (recurringItems.length > 0) {
+    const uncheckedR = recurringItems.filter(i => !recurringCheckedSet.has(i.id));
+    const checkedR   = recurringItems.filter(i =>  recurringCheckedSet.has(i.id));
 
-  // Toggle checked state
-  page.querySelectorAll('.shop-item input[type=checkbox]').forEach(chk => {
+    function recurringItemHtml(i) {
+      const isChecked = recurringCheckedSet.has(i.id);
+      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-id="${i.id}" data-type="recurring">
+        <input type="checkbox" id="chk-rec-${i.id}" ${isChecked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
+        <label for="chk-rec-${i.id}">
+          ${escHtml(i.name)}
+          <span class="shop-source">${icon('repeat', 10)} Every week</span>
+        </label>
+        <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
+        <button class="shop-remove" data-id="${i.id}" data-type="recurring" aria-label="Remove ${escHtml(i.name)}">${icon('x', 14)}</button>
+      </div>`;
+    }
+
+    recurringSection = `
+      <div class="shop-section-title">${icon('repeat', 14)} Weekly Recurring</div>
+      <div class="card" id="shop-list-recurring">
+        ${uncheckedR.map(recurringItemHtml).join('')}
+        ${checkedR.length && uncheckedR.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
+        ${checkedR.map(recurringItemHtml).join('')}
+      </div>`;
+  }
+
+  // --- Custom (manual) items ---
+  const customItems = CustomItemsDB.all();
+  let customSection = '';
+  if (customItems.length > 0) {
+    const uncheckedC = customItems.filter(i => !i.checked);
+    const checkedC   = customItems.filter(i =>  i.checked);
+
+    function customItemHtml(i) {
+      return `<div class="shop-item${i.checked ? ' checked' : ''}" data-id="${i.id}" data-type="custom">
+        <input type="checkbox" id="chk-cust-${i.id}" ${i.checked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
+        <label for="chk-cust-${i.id}">
+          ${escHtml(i.name)}
+        </label>
+        <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
+        <button class="shop-remove" data-id="${i.id}" data-type="custom" aria-label="Remove ${escHtml(i.name)}">${icon('x', 14)}</button>
+      </div>`;
+    }
+
+    customSection = `
+      <div class="shop-section-title">${icon('list-plus', 14)} Other Items</div>
+      <div class="card" id="shop-list-custom">
+        ${uncheckedC.map(customItemHtml).join('')}
+        ${checkedC.length && uncheckedC.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
+        ${checkedC.map(customItemHtml).join('')}
+      </div>`;
+  }
+
+  // --- Empty state ---
+  const totalItems = items.length + recurringItems.length + customItems.length;
+  const emptyState = totalItems === 0 ? `<div class="empty-state">
+    <div class="empty-icon">${icon('shopping-cart', 48)}</div>
+    <p>Your shopping list is empty.<br>Add items above or plan meals in the Planner!</p>
+  </div>` : '';
+
+  // --- Share / Export buttons ---
+  const shareButtons = totalItems > 0 ? `
+    <div class="shop-share-row">
+      <button class="btn btn-outline shop-share-btn" id="shop-copy-btn">${icon('clipboard-copy', 16)} Copy List</button>
+      <button class="btn btn-outline shop-share-btn" id="shop-share-btn">${icon('share-2', 16)} Share</button>
+    </div>` : '';
+
+  const weekLabel = `<div class="shop-week-label">${icon('calendar-days', 14)} ${escHtml(label)}</div>`;
+
+  page.innerHTML = tabs + addForm + weekLabel + recipeSection + recurringSection + customSection + emptyState + shareButtons;
+
+  // --- Wire add form ---
+  const addBtn = document.getElementById('shop-add-btn');
+  const addName = document.getElementById('shop-add-name');
+  const addQty = document.getElementById('shop-add-qty');
+  const addUnit = document.getElementById('shop-add-unit');
+  const addRecurring = document.getElementById('shop-add-recurring');
+
+  function doAdd() {
+    const name = addName.value.trim();
+    if (!name) return;
+    if (addRecurring.checked) {
+      RecurringDB.add(name, addQty.value.trim(), addUnit.value.trim());
+      showToast('Recurring item added');
+    } else {
+      CustomItemsDB.add(name, addQty.value.trim(), addUnit.value.trim());
+      showToast('Item added');
+    }
+    renderShopping();
+    updateShoppingBadge();
+  }
+
+  addBtn.addEventListener('click', doAdd);
+  addName.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
+
+  // --- Wire recipe item checkboxes ---
+  page.querySelectorAll('.shop-item[data-type="recipe"] input[type=checkbox]').forEach(chk => {
     chk.addEventListener('change', () => {
       const safeKey = chk.closest('.shop-item').dataset.key;
       const key = decodeURIComponent(atob(safeKey));
@@ -537,6 +706,84 @@ function renderShoppingWeek(page, tabs, weekOffset) {
       renderShopping();
     });
   });
+
+  // --- Wire recurring item checkboxes ---
+  page.querySelectorAll('.shop-item[data-type="recurring"] input[type=checkbox]').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const id = chk.closest('.shop-item').dataset.id;
+      if (chk.checked) recurringCheckedSet.add(id);
+      else recurringCheckedSet.delete(id);
+      localStorage.setItem(recurringCheckedKey, JSON.stringify([...recurringCheckedSet]));
+      renderShopping();
+    });
+  });
+
+  // --- Wire custom item checkboxes ---
+  page.querySelectorAll('.shop-item[data-type="custom"] input[type=checkbox]').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const id = chk.closest('.shop-item').dataset.id;
+      CustomItemsDB.toggle(id);
+      renderShopping();
+    });
+  });
+
+  // --- Wire remove buttons ---
+  page.querySelectorAll('.shop-remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const type = btn.dataset.type;
+      if (type === 'recurring') {
+        RecurringDB.remove(id);
+        showToast('Recurring item removed');
+      } else if (type === 'custom') {
+        CustomItemsDB.remove(id);
+        showToast('Item removed');
+      }
+      renderShopping();
+      updateShoppingBadge();
+    });
+  });
+
+  // --- Wire share / copy buttons ---
+  const copyBtn = document.getElementById('shop-copy-btn');
+  const shareBtn = document.getElementById('shop-share-btn');
+
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const text = buildShoppingListText(weekOffset);
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('List copied to clipboard');
+      }).catch(() => {
+        // Fallback for older browsers
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('List copied to clipboard');
+      });
+    });
+  }
+
+  if (shareBtn) {
+    shareBtn.addEventListener('click', () => {
+      const text = buildShoppingListText(weekOffset);
+      if (navigator.share) {
+        navigator.share({ title: 'Shopping List', text: text }).catch(() => {});
+      } else {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(text).then(() => {
+          showToast('List copied (share not supported on this device)');
+        }).catch(() => {
+          showToast('Could not share');
+        });
+      }
+    });
+  }
 }
 
 /* ── Planner page ────────────────────────────────────────── */
@@ -869,7 +1116,17 @@ function updateShoppingBadge() {
   const items = ingredientsForWeek(wk);
   const checkedKey = `shop_checked_${wk}`;
   const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
-  const n = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit)).length;
+  const recipeCount = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit)).length;
+
+  // Recurring items unchecked count
+  const recurringCheckedKey = `shop_recurring_checked_${wk}`;
+  const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
+  const recurringCount = RecurringDB.all().filter(i => !recurringCheckedSet.has(i.id)).length;
+
+  // Custom items unchecked count
+  const customCount = CustomItemsDB.count();
+
+  const n = recipeCount + recurringCount + customCount;
   let badge = document.getElementById('shop-badge');
   if (!badge) {
     const btn = document.querySelector('.nav-btn[data-page="shopping"]');

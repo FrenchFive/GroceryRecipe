@@ -648,6 +648,125 @@ img.emoji.recipe-photo {
   letter-spacing: .04em;
 }
 
+/* ── Shopping add form ───────────────────────────────────── */
+.shop-add-form {
+  padding: 10px 12px;
+}
+.shop-add-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.shop-add-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .9rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--body-bg);
+  outline: none;
+}
+.shop-add-input:focus {
+  border-color: var(--green);
+}
+.shop-add-qty {
+  width: 52px;
+  padding: 10px 6px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .85rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--body-bg);
+  text-align: center;
+  outline: none;
+}
+.shop-add-unit {
+  width: 52px;
+  padding: 10px 6px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .85rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--body-bg);
+  text-align: center;
+  outline: none;
+}
+.shop-add-qty:focus, .shop-add-unit:focus {
+  border-color: var(--green);
+}
+.btn-icon {
+  background: var(--green);
+  color: #fff;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 2px 2px 0 var(--border);
+  transition: transform .1s, box-shadow .1s;
+}
+.btn-icon:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+.shop-add-options {
+  margin-top: 8px;
+  padding-left: 2px;
+}
+.shop-recurring-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.shop-recurring-toggle input[type=checkbox] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+/* ── Shopping section titles ─────────────────────────────── */
+.shop-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: .75rem;
+  font-weight: 900;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+/* ── Shopping share/export row ───────────────────────────── */
+.shop-share-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  padding-bottom: 24px;
+}
+.shop-share-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: .85rem;
+}
+
 /* ── Calendar planner ────────────────────────────────────── */
 .cal-nav {
   display: flex;
