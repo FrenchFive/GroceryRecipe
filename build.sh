@@ -79,21 +79,48 @@ if [ "$BUILD_APK" = true ]; then
   echo "  🤖  Building Android APK …"
   echo "  ──────────────────────────"
 
+  # Auto-increment versionCode from file (persists across builds)
+  VERSION_CODE_FILE="$SCRIPT_DIR/.version_code"
+  if [ -f "$VERSION_CODE_FILE" ]; then
+    CURRENT_CODE=$(cat "$VERSION_CODE_FILE")
+  else
+    CURRENT_CODE=0
+  fi
+  NEXT_CODE=$((CURRENT_CODE + 1))
+  echo "$NEXT_CODE" > "$VERSION_CODE_FILE"
+  export VERSION_CODE="$NEXT_CODE"
+  export VERSION_NAME="1.0.$NEXT_CODE"
+  echo "  📌  versionCode=$VERSION_CODE  versionName=$VERSION_NAME"
+
   # Sync web assets into the native project
   echo "  🔄  Syncing Capacitor …"
   npx cap sync android
 
-  # Build debug APK via Gradle
-  echo "  🔨  Gradle assembleDebug …"
-  cd "$SCRIPT_DIR/android"
-  ./gradlew assembleDebug --no-daemon
+  # Determine build type: release if key.properties exists, otherwise debug
+  KEYSTORE_PROPS="$SCRIPT_DIR/android/key.properties"
+  if [ -f "$KEYSTORE_PROPS" ]; then
+    BUILD_TYPE="release"
+    echo "  🔐  Signing config found – building RELEASE APK …"
+    echo "  🔨  Gradle assembleRelease …"
+    cd "$SCRIPT_DIR/android"
+    ./gradlew assembleRelease --no-daemon
+    APK_SRC="$SCRIPT_DIR/android/app/build/outputs/apk/release/app-release.apk"
+  else
+    BUILD_TYPE="debug"
+    echo "  ⚠️   No key.properties found – building DEBUG APK."
+    echo "       To enable release builds, create android/key.properties"
+    echo "       (see SIGNING.md for instructions)."
+    echo "  🔨  Gradle assembleDebug …"
+    cd "$SCRIPT_DIR/android"
+    ./gradlew assembleDebug --no-daemon
+    APK_SRC="$SCRIPT_DIR/android/app/build/outputs/apk/debug/app-debug.apk"
+  fi
 
   # Locate the APK
-  APK_SRC="$SCRIPT_DIR/android/app/build/outputs/apk/debug/app-debug.apk"
   if [ -f "$APK_SRC" ]; then
     APK_PATH="$RELEASE_DIR/GroceryRecipe-$VERSION.apk"
     cp "$APK_SRC" "$APK_PATH"
-    echo "  ✅  APK copied → $(basename "$APK_PATH")"
+    echo "  ✅  APK ($BUILD_TYPE) copied → $(basename "$APK_PATH")"
   else
     echo "  ⚠️   APK not found at expected path."
     echo "       Check android/app/build/outputs/apk/ for output."

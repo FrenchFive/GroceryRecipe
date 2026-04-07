@@ -28,3 +28,6 @@ local.properties
 
 # Environment
 .env
+
+# Build version tracker
+.version_code
