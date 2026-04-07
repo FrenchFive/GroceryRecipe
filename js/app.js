@@ -2,6 +2,8 @@
  * app.js – SPA routing, view rendering, event wiring
  */
 
+const APP_VERSION = '0.0.4';
+
 /* ── Inline SVG icon helper (no createIcons dependency) ── */
 const ICON_SVG = {
   'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
@@ -1092,7 +1094,7 @@ function renderProfile() {
     <div class="profile-header">
       <div class="profile-avatar">${icon('chef-hat', 36)}</div>
       <div class="profile-app-name">GroceryRecipe</div>
-      <div class="profile-version">v0.0.1</div>
+      <div class="profile-version">v${APP_VERSION}</div>
       <div class="profile-stats">
         <div class="profile-stat">
           <span class="profile-stat-num">${recipeCount}</span>
