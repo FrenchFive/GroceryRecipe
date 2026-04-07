@@ -71,14 +71,14 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 /** Conversion factors within each category (to a base unit). */
 const UNIT_CONVERSIONS = {
   mass:   { mg: 0.001, g: 1, kg: 1000 },
-  volume: { ml: 1, l: 1000 },
+  volume: { ml: 1, pint: 480, l: 1000 },
   spoon:  { tsp: 1, tbsp: 3 },
 };
 
 /** Ordered lists of units per category (smallest → largest). */
 const UNIT_ORDER = {
   mass:   ['mg', 'g', 'kg'],
-  volume: ['ml', 'l'],
+  volume: ['ml', 'pint', 'l'],
   spoon:  ['tsp', 'tbsp'],
 };
 
@@ -89,6 +89,7 @@ const UNIT_OPTIONS = [
   { value: 'g',        label: 'g',        category: 'mass' },
   { value: 'kg',       label: 'kg',       category: 'mass' },
   { value: 'ml',       label: 'ml',       category: 'volume' },
+  { value: 'pint',     label: 'pint',     category: 'volume' },
   { value: 'l',        label: 'l',        category: 'volume' },
   { value: 'tsp',      label: 'tsp',      category: 'spoon' },
   { value: 'tbsp',     label: 'tbsp',     category: 'spoon' },
