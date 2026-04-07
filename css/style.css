@@ -609,6 +609,7 @@ img.emoji.recipe-photo {
   display: flex;
   background: var(--card-bg);
   border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 0;
   margin-bottom: 14px;
@@ -619,7 +620,7 @@ img.emoji.recipe-photo {
   padding: 12px 8px;
   background: none;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 0;
   font-size: .85rem;
   font-weight: 800;
   cursor: pointer;
@@ -813,16 +814,24 @@ img.emoji.recipe-photo {
   text-transform: uppercase;
 }
 .cal-today-btn {
-  background: var(--green-bg);
-  border: 2px solid var(--green);
-  color: var(--green);
+  background: var(--green);
+  border: 2px solid var(--border);
+  color: #fff;
   font-size: .7rem;
   font-weight: 800;
-  padding: 3px 12px;
+  padding: 5px 14px;
   border-radius: var(--radius);
   cursor: pointer;
   font-family: inherit;
   text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
+}
+.cal-today-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
 }
 
 /* ── Horizontal day strip ────────────────────────────────── */
@@ -862,7 +871,10 @@ img.emoji.recipe-photo {
   letter-spacing: .06em;
   color: var(--text-muted);
 }
-.cal-strip-day.today .cal-strip-name { color: var(--green); }
+.cal-strip-day.today .cal-strip-name {
+  color: var(--green);
+  font-weight: 900;
+}
 .cal-strip-num {
   font-size: .95rem;
   font-weight: 900;
@@ -883,8 +895,10 @@ img.emoji.recipe-photo {
   box-shadow: 2px 2px 0 var(--border);
 }
 .cal-strip-day.today:not(.selected) .cal-strip-num {
-  color: var(--green);
-  border: 2px solid var(--green);
+  color: #fff;
+  background: var(--green);
+  border: 2px solid var(--border);
+  box-shadow: 2px 2px 0 var(--border);
 }
 .cal-strip-meals {
   width: 6px;

@@ -57,6 +57,7 @@ copy "%SCRIPT_DIR%\manifest.json" "%DIST%\" >nul
 copy "%SCRIPT_DIR%\css\style.css" "%DIST%\css\" >nul
 copy "%SCRIPT_DIR%\js\db.js"      "%DIST%\js\" >nul
 copy "%SCRIPT_DIR%\js\app.js"     "%DIST%\js\" >nul
+copy "%SCRIPT_DIR%\js\lucide.min.js" "%DIST%\js\" >nul
 copy "%SCRIPT_DIR%\icons\*.png"   "%DIST%\icons\" >nul
 
 :: ── 3. Write service worker with versioned cache name ─────
