@@ -1271,5 +1271,12 @@ document.addEventListener('DOMContentLoaded', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
-  navigate('recipes');
+  // Default to planner if today has meals planned, otherwise recipes
+  const todayWk = weekKey(new Date());
+  const todayPlan = PlanDB.allForWeek(todayWk);
+  const nowDow = new Date().getDay();
+  const todayDayName = DAYS[nowDow === 0 ? 6 : nowDow - 1];
+  const todayDayPlan = todayPlan[todayDayName] || {};
+  const todayHasMeals = MEALS.some(m => (todayDayPlan[m] || []).length > 0);
+  navigate(todayHasMeals ? 'planner' : 'recipes');
 });
