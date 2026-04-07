@@ -492,7 +492,7 @@ img.emoji.recipe-photo {
 
 .ingredient-row {
   display: grid;
-  grid-template-columns: 1fr 60px 56px 32px;
+  grid-template-columns: 1fr 65px auto 32px;
   gap: 6px;
   margin-bottom: 8px;
   align-items: center;
@@ -510,13 +510,97 @@ img.emoji.recipe-photo {
   min-width: 0;
 }
 
+/* Ingredient name wrapper for autocomplete positioning */
+.ing-name-wrap {
+  position: relative;
+  min-width: 0;
+}
+.ing-name-wrap input { width: 100%; }
+
+/* Autocomplete dropdown */
+.ing-ac {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-top: 2px;
+}
+.ing-ac.open { display: block; }
+.ing-ac-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 600;
+}
+.ing-ac-item:hover,
+.ing-ac-item:active { background: var(--green-bg); }
+.ing-ac-item + .ing-ac-item { border-top: 1px solid var(--border); }
+.ing-ac-unit {
+  font-size: .75rem;
+  color: var(--text-muted);
+  background: var(--body-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
 .ingredient-header {
   display: grid;
-  grid-template-columns: 1fr 60px 56px 32px;
+  grid-template-columns: 1fr 65px auto 32px;
   gap: 6px;
   margin-bottom: 6px;
 }
 .ingredient-header span { font-size: .75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
+.ing-unit-hdr { min-width: 110px; }
+
+/* Unit control: − [select] + */
+.unit-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.unit-ctrl select {
+  width: 65px;
+  padding: 6px 2px;
+  font-size: .85rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  text-align: center;
+  font-weight: 700;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.unit-ctrl select:focus { border-color: var(--green); outline: none; }
+.unit-mag-btn {
+  width: 26px;
+  height: 32px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  color: var(--green);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  box-shadow: 2px 2px 0 var(--border);
+}
+.unit-mag-btn:active { transform: translate(2px, 2px); box-shadow: none; }
 
 .step-row {
   display: grid;
@@ -1056,6 +1140,55 @@ img.cal-card-emoji {
   font-weight: 600;
 }
 .cal-card-arrow { color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; }
+
+/* ── Planner servings control ───────────────────────────── */
+.cal-servings-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 25%, transparent);
+  margin-top: 10px;
+}
+.cal-servings-row label {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.cal-servings-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--green-bg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px 8px;
+  box-shadow: 2px 2px 0 var(--border);
+}
+.cal-srv-btn {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: var(--green);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+  padding: 0;
+  line-height: 1;
+}
+.cal-srv-btn:hover { background: rgba(0,0,0,.08); }
+.cal-srv-val {
+  font-size: .9rem;
+  font-weight: 900;
+  min-width: 18px;
+  text-align: center;
+}
 
 .cal-card-add {
   display: flex;

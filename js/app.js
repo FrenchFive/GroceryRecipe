@@ -350,7 +350,7 @@ function renderAddForm(editId) {
         <div class="ingredient-header">
           <span>Name</span>
           <span>Qty</span>
-          <span>Unit</span>
+          <span class="ing-unit-hdr">Unit</span>
           <span></span>
         </div>
         <div id="ing-rows"></div>
@@ -373,17 +373,138 @@ function renderAddForm(editId) {
   const ingContainer  = document.getElementById('ing-rows');
   const stepContainer = document.getElementById('step-rows');
 
-  function addIngRow(name = '', qty = '', unit = '') {
+  // Ingredient autocomplete data: [{name, unit}]
+  const knownIngredients = RecipeDB.allIngredientsWithUnits();
+
+  // Build unit <select> options HTML (grouped by category)
+  const unitOptHtml = (() => {
+    const cats = [
+      { label: 'Count',  units: UNIT_OPTIONS.filter(u => u.category === 'count') },
+      { label: 'Mass',   units: UNIT_OPTIONS.filter(u => u.category === 'mass') },
+      { label: 'Volume', units: UNIT_OPTIONS.filter(u => u.category === 'volume') },
+      { label: 'Spoon',  units: UNIT_OPTIONS.filter(u => u.category === 'spoon') },
+      { label: 'Other',  units: UNIT_OPTIONS.filter(u => u.category === 'other') },
+    ];
+    return cats.map(c =>
+      `<optgroup label="${c.label}">${c.units.map(u =>
+        `<option value="${escHtml(u.value)}">${escHtml(u.label)}</option>`
+      ).join('')}</optgroup>`
+    ).join('');
+  })();
+
+  /** Debounce helper */
+  function debounce(fn, ms) {
+    let timer;
+    return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+  }
+
+  /** Wire up custom autocomplete on an ingredient row */
+  function setupAutocomplete(row) {
+    const nameInput = row.querySelector('.ing-name');
+    const dropdown  = row.querySelector('.ing-ac');
+
+    function showSuggestions() {
+      const q = nameInput.value.trim().toLowerCase();
+      dropdown.innerHTML = '';
+      if (q.length < 3) { dropdown.classList.remove('open'); return; }
+
+      const matches = knownIngredients
+        .filter(i => i.name.toLowerCase().includes(q))
+        .slice(0, 2);
+
+      if (matches.length === 0) { dropdown.classList.remove('open'); return; }
+
+      matches.forEach(match => {
+        const item = document.createElement('div');
+        item.className = 'ing-ac-item';
+        item.innerHTML = `<span>${escHtml(match.name)}</span><span class="ing-ac-unit">${escHtml(match.unit || 'unit')}</span>`;
+        item.addEventListener('mousedown', e => {
+          e.preventDefault();
+          nameInput.value = match.name;
+          const sel = row.querySelector('.ing-unit');
+          const opt = [...sel.options].find(o => o.value === (match.unit || ''));
+          if (opt) sel.value = opt.value;
+          dropdown.classList.remove('open');
+        });
+        dropdown.appendChild(item);
+      });
+      dropdown.classList.add('open');
+    }
+
+    const debouncedShow = debounce(showSuggestions, 200);
+    nameInput.addEventListener('input', debouncedShow);
+    nameInput.addEventListener('blur', () => {
+      setTimeout(() => dropdown.classList.remove('open'), 150);
+    });
+    nameInput.addEventListener('focus', () => {
+      if (nameInput.value.trim().length >= 3) debouncedShow();
+    });
+  }
+
+  function addIngRow(name = '', qty = '', unit = '', focus = false) {
     const div = document.createElement('div');
     div.className = 'ingredient-row';
     div.innerHTML = `
-      <input type="text"   class="ing-name" placeholder="Flour"  value="${escHtml(name)}">
-      <input type="text"   class="ing-qty"  placeholder="200"    value="${escHtml(qty)}">
-      <input type="text"   class="ing-unit" placeholder="g"      value="${escHtml(unit)}">
+      <div class="ing-name-wrap">
+        <input type="text" class="ing-name" placeholder="Flour" value="${escHtml(name)}" autocomplete="off">
+        <div class="ing-ac"></div>
+      </div>
+      <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
+      <div class="unit-ctrl">
+        <button type="button" class="unit-mag-btn unit-down" aria-label="Smaller unit">${icon('minus', 12)}</button>
+        <select class="ing-unit">${unitOptHtml}</select>
+        <button type="button" class="unit-mag-btn unit-up" aria-label="Larger unit">${icon('plus', 12)}</button>
+      </div>
       <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
     `;
+    // Set selected unit
+    const sel = div.querySelector('.ing-unit');
+    const matchOpt = [...sel.options].find(o => o.value === (unit || ''));
+    if (matchOpt) matchOpt.selected = true;
+    else if (unit) {
+      const opt = document.createElement('option');
+      opt.value = unit; opt.textContent = unit; opt.selected = true;
+      sel.appendChild(opt);
+    }
+
+    // Magnitude +/- : cycle to next/prev unit in same category & adjust qty
+    div.querySelector('.unit-up').addEventListener('click', () => shiftUnit(div, 1));
+    div.querySelector('.unit-down').addEventListener('click', () => shiftUnit(div, -1));
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
+
+    // Autocomplete
+    setupAutocomplete(div);
+
     ingContainer.appendChild(div);
+
+    if (focus) {
+      const nameInput = div.querySelector('.ing-name');
+      setTimeout(() => nameInput.focus(), 0);
+    }
+  }
+
+  function shiftUnit(row, dir) {
+    const sel     = row.querySelector('.ing-unit');
+    const qtyEl   = row.querySelector('.ing-qty');
+    const curUnit = sel.value;
+    const cat     = getUnitCategory(curUnit);
+    const order   = UNIT_ORDER[cat];
+    const conv    = UNIT_CONVERSIONS[cat];
+    if (!order || !conv) return;
+
+    const idx = order.indexOf(curUnit);
+    if (idx < 0) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= order.length) return;
+
+    const newUnit = order[newIdx];
+    const curQty  = parseFloat(qtyEl.value);
+    if (!isNaN(curQty)) {
+      const base   = curQty * conv[curUnit];
+      const newQty = Math.round((base / conv[newUnit]) * 1000) / 1000;
+      qtyEl.value  = newQty;
+    }
+    sel.value = newUnit;
   }
 
   function addStepRow(text = '') {
@@ -403,10 +524,10 @@ function renderAddForm(editId) {
     r.steps.forEach(s => addStepRow(s));
   } else {
     addIngRow(); addIngRow();
-    addStepRow(); addStepRow();
+    addStepRow();
   }
 
-  document.getElementById('add-ing-btn').addEventListener('click',  () => addIngRow());
+  document.getElementById('add-ing-btn').addEventListener('click',  () => addIngRow('', '', '', true));
   document.getElementById('add-step-btn').addEventListener('click', () => addStepRow());
 
   // Photo / Emoji toggle
@@ -503,24 +624,26 @@ function renderAddForm(editId) {
 
 /* ── Shopping page ───────────────────────────────────────── */
 
-/** Compute merged ingredient list from a planner week (Mon-Sun). */
+/** Compute merged ingredient list from a planner week (Mon-Sun), scaled by per-meal servings. */
 function ingredientsForPlannerWeek(wk) {
   const plan = PlanDB.allForWeek(wk);
   const ingMap = {};
   DAYS.forEach(day => {
     MEALS.forEach(meal => {
-      const rids = plan[day]?.[meal] || [];
-      rids.forEach(rid => {
-        const recipe = RecipeDB.get(rid);
+      const slots = plan[day]?.[meal] || [];
+      slots.forEach(slot => {
+        const recipe = RecipeDB.get(slot.recipeId);
         if (!recipe) return;
+        const mult = (slot.servings || recipe.servings) / recipe.servings;
         recipe.ingredients.forEach(ing => {
           const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
+          const scaledQty = isNaN(parseFloat(ing.qty)) ? ing.qty : String(Math.round(parseFloat(ing.qty) * mult * 100) / 100);
           if (ingMap[k]) {
-            const prev = parseFloat(ingMap[k].qty), add = parseFloat(ing.qty);
+            const prev = parseFloat(ingMap[k].qty), add = parseFloat(scaledQty);
             if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
             if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
           } else {
-            ingMap[k] = { name: ing.name, qty: ing.qty, unit: ing.unit, sources: [recipe.name] };
+            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, sources: [recipe.name] };
           }
         });
       });
@@ -530,7 +653,7 @@ function ingredientsForPlannerWeek(wk) {
 }
 
 /**
- * Compute merged ingredient list for a shopping week (shopWeekKey).
+ * Compute merged ingredient list for a shopping week (shopWeekKey), scaled by per-meal servings.
  * The shopping week may span two planner weeks if shopping day != Monday.
  */
 function ingredientsForShopWeek(swk) {
@@ -539,23 +662,24 @@ function ingredientsForShopWeek(swk) {
   dates.forEach(date => {
     const planWk = weekKey(date);
     const plan = PlanDB.allForWeek(planWk);
-    // Which day name is this date?
     const dow = date.getDay();
     const dayIdx = dow === 0 ? 6 : dow - 1;
     const dayName = DAYS[dayIdx];
     MEALS.forEach(meal => {
-      const rids = plan[dayName]?.[meal] || [];
-      rids.forEach(rid => {
-        const recipe = RecipeDB.get(rid);
+      const slots = plan[dayName]?.[meal] || [];
+      slots.forEach(slot => {
+        const recipe = RecipeDB.get(slot.recipeId);
         if (!recipe) return;
+        const mult = (slot.servings || recipe.servings) / recipe.servings;
         recipe.ingredients.forEach(ing => {
           const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
+          const scaledQty = isNaN(parseFloat(ing.qty)) ? ing.qty : String(Math.round(parseFloat(ing.qty) * mult * 100) / 100);
           if (ingMap[k]) {
-            const prev = parseFloat(ingMap[k].qty), add = parseFloat(ing.qty);
+            const prev = parseFloat(ingMap[k].qty), add = parseFloat(scaledQty);
             if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
             if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
           } else {
-            ingMap[k] = { name: ing.name, qty: ing.qty, unit: ing.unit, sources: [recipe.name] };
+            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, sources: [recipe.name] };
           }
         });
       });
@@ -941,20 +1065,28 @@ function renderPlanner() {
 
   /* ── 3 meal cards for selected day ──── */
   const mealCardsHtml = MEALS.map(meal => {
-    const rids    = selPlan[meal] || [];
-    const recipes = rids.map(id => RecipeDB.get(id)).filter(Boolean);
-    const hasRecipes = recipes.length > 0;
+    const slots   = selPlan[meal] || [];
+    const entries = slots.map(s => ({ recipe: RecipeDB.get(s.recipeId), servings: s.servings, recipeId: s.recipeId })).filter(e => e.recipe);
+    const hasRecipes = entries.length > 0;
 
-    const recipesHtml = recipes.map(recipe => `
+    const recipesHtml = entries.map(({ recipe, servings, recipeId }) => `
       <div class="cal-card-recipe">
         ${recipeVisual(recipe, 'cal-card-emoji')}
         <div class="cal-card-info">
           <span class="cal-card-name">${escHtml(recipe.name)}</span>
-          <span class="cal-card-meta">${recipe.ingredients.length} ing · serves ${recipe.servings}</span>
+          <span class="cal-card-meta">${recipe.ingredients.length} ing</span>
         </div>
         <button class="cal-recipe-remove" data-wk="${wk}" data-day="${escHtml(selDay)}"
-                data-meal="${meal}" data-rid="${recipe.id}"
+                data-meal="${meal}" data-rid="${recipeId}"
                 aria-label="Remove ${recipe.name}">${icon('x', 14)}</button>
+      </div>
+      <div class="cal-servings-row">
+        <label>Serves:</label>
+        <div class="cal-servings-ctrl">
+          <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="-1" aria-label="Decrease servings">${icon('minus', 12)}</button>
+          <span class="cal-srv-val">${servings}</span>
+          <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="1" aria-label="Increase servings">${icon('plus', 12)}</button>
+        </div>
       </div>
     `).join('');
 
@@ -1035,6 +1167,32 @@ function renderPlanner() {
     });
   });
 
+  /* ── Swipe left/right to change day ──── */
+  (function() {
+    const detail = page.querySelector('.cal-day-detail');
+    let startX = 0, startY = 0;
+    detail.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+    detail.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+      const cur = getEffectiveSelIdx(nowDate);
+      if (dx < 0) {
+        // swipe left → next day
+        if (cur < 6) { plannerSelectedDayIdx = cur + 1; }
+        else { plannerWeekOffset++; plannerSelectedDayIdx = 0; }
+      } else {
+        // swipe right → previous day
+        if (cur > 0) { plannerSelectedDayIdx = cur - 1; }
+        else { plannerWeekOffset--; plannerSelectedDayIdx = 6; }
+      }
+      renderPlanner();
+    });
+  })();
+
   /* ── Add button → open picker ──── */
   page.querySelectorAll('.cal-card-add-more').forEach(el => {
     const open = () => openMealPicker(el.dataset.wk, el.dataset.day, el.dataset.meal);
@@ -1056,6 +1214,22 @@ function renderPlanner() {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       PlanDB.clearMeal(btn.dataset.wk, btn.dataset.day, btn.dataset.meal);
+      renderPlanner();
+    });
+  });
+
+  /* ── Servings +/- buttons ──── */
+  page.querySelectorAll('.cal-srv-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const { wk: slotWk, day: slotDay, meal: slotMeal, rid, dir } = btn.dataset;
+      const curPlan = PlanDB.allForWeek(slotWk);
+      const slots = curPlan[slotDay]?.[slotMeal] || [];
+      const slot = slots.find(s => s.recipeId === rid);
+      if (!slot) return;
+      const newServings = slot.servings + parseInt(dir, 10);
+      if (newServings < 1) return;
+      PlanDB.setServings(slotWk, slotDay, slotMeal, rid, newServings);
       renderPlanner();
     });
   });
