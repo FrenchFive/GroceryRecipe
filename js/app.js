@@ -370,8 +370,7 @@ function renderShoppingCurrent(page, tabs) {
   } else {
     const actions = `
       <div class="flex-row" style="margin-bottom:14px;justify-content:flex-end;flex-wrap:wrap;gap:8px;">
-        <button class="btn btn-outline" id="btn-copy-list" style="font-size:.85rem;padding:8px 14px;">📋 Copy list</button>
-        <button class="btn btn-outline" id="btn-share-list" style="font-size:.85rem;padding:8px 14px;">📤 Share</button>
+        ${ShareComponent.html('shop')}
         ${checked.length ? `<button class="btn btn-outline" id="btn-clear-checked" style="font-size:.85rem;padding:8px 14px;">✓ Remove checked</button>` : ''}
         <button class="btn btn-danger" id="btn-clear-all" style="font-size:.85rem;padding:8px 14px;">🗑 Clear all</button>
       </div>`;
@@ -421,29 +420,7 @@ function renderShoppingCurrent(page, tabs) {
     });
   }
 
-  const btnCopy = document.getElementById('btn-copy-list');
-  if (btnCopy) {
-    btnCopy.addEventListener('click', () => {
-      const text = formatShoppingListText(items);
-      navigator.clipboard.writeText(text).then(() => {
-        showToast('List copied to clipboard!');
-      });
-    });
-  }
-
-  const btnShare = document.getElementById('btn-share-list');
-  if (btnShare) {
-    btnShare.addEventListener('click', () => {
-      const text = formatShoppingListText(items);
-      if (navigator.share) {
-        navigator.share({ title: 'Shopping List', text }).catch(() => {});
-      } else {
-        navigator.clipboard.writeText(text).then(() => {
-          showToast('Share not supported on this browser — list copied to clipboard instead.');
-        });
-      }
-    });
-  }
+  ShareComponent.bind('shop', 'Shopping List', () => formatShoppingListText(items));
 }
 
 function renderShoppingNextWeek(page, tabs) {
@@ -739,7 +716,44 @@ function updateShoppingBadge() {
   badge.style.display = n > 0 ? 'inline' : 'none';
 }
 
-/* ── Shopping list text formatter ────────────────────────── */
+/* ── Shared Share / Copy component ───────────────────────── */
+/**
+ * Reusable share & copy buttons.
+ *   ShareComponent.html(idPrefix)          → HTML string for the two buttons
+ *   ShareComponent.bind(idPrefix, title, getTextFn) → wire up click handlers
+ */
+const ShareComponent = {
+  html(idPrefix) {
+    return `<button class="btn btn-outline" id="${idPrefix}-copy" style="font-size:.85rem;padding:8px 14px;">📋 Copy list</button>
+        <button class="btn btn-outline" id="${idPrefix}-share" style="font-size:.85rem;padding:8px 14px;">📤 Share</button>`;
+  },
+
+  bind(idPrefix, title, getTextFn) {
+    const btnCopy = document.getElementById(`${idPrefix}-copy`);
+    if (btnCopy) {
+      btnCopy.addEventListener('click', () => {
+        navigator.clipboard.writeText(getTextFn()).then(() => {
+          showToast('List copied to clipboard!');
+        });
+      });
+    }
+
+    const btnShare = document.getElementById(`${idPrefix}-share`);
+    if (btnShare) {
+      btnShare.addEventListener('click', () => {
+        const text = getTextFn();
+        if (navigator.share) {
+          navigator.share({ title, text }).catch(() => {});
+        } else {
+          navigator.clipboard.writeText(text).then(() => {
+            showToast('Share not supported on this browser — list copied to clipboard instead.');
+          });
+        }
+      });
+    }
+  }
+};
+
 function formatShoppingListText(items) {
   const unchecked = items.filter(i => !i.checked);
   const checked   = items.filter(i =>  i.checked);
