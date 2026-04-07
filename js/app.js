@@ -53,8 +53,9 @@ function navigate(page) {
 
   // show/hide back & add buttons
   const inDetail = page === 'detail' || page === 'add' || page === 'edit';
+  const hideAdd  = inDetail || page === 'planner';
   document.getElementById('back-btn').style.display = inDetail ? 'flex' : 'none';
-  document.getElementById('btn-add-recipe').style.display = inDetail ? 'none' : 'flex';
+  document.getElementById('btn-add-recipe').style.display = hideAdd ? 'none' : 'flex';
   document.getElementById('bottom-nav').style.display = inDetail ? 'none' : 'flex';
 
   // Render the page content
@@ -663,6 +664,32 @@ function renderPlanner() {
     });
   });
 
+  /* ── Swipe left/right to change day ──── */
+  (function() {
+    const detail = page.querySelector('.cal-day-detail');
+    let startX = 0, startY = 0;
+    detail.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+    detail.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+      const cur = getEffectiveSelIdx(nowDate);
+      if (dx < 0) {
+        // swipe left → next day
+        if (cur < 6) { plannerSelectedDayIdx = cur + 1; }
+        else { plannerWeekOffset++; plannerSelectedDayIdx = 0; }
+      } else {
+        // swipe right → previous day
+        if (cur > 0) { plannerSelectedDayIdx = cur - 1; }
+        else { plannerWeekOffset--; plannerSelectedDayIdx = 6; }
+      }
+      renderPlanner();
+    });
+  })();
+
   /* ── Meal card body → open picker ──── */
   page.querySelectorAll('.cal-meal-card-body').forEach(el => {
     const open = () => openMealPicker(el.dataset.wk, el.dataset.day, el.dataset.meal);
@@ -847,6 +874,42 @@ function escHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+/* ── Shopping add popup ──────────────────────────────────── */
+function openShoppingAddPopup() {
+  const picker   = document.getElementById('shop-add-picker');
+  const backdrop = document.getElementById('shop-add-backdrop');
+  const form     = document.getElementById('shop-add-form');
+
+  // Reset fields
+  document.getElementById('shop-add-name').value = '';
+  document.getElementById('shop-add-qty').value  = '';
+  document.getElementById('shop-add-unit').value = '';
+
+  picker.classList.add('open');
+  setTimeout(() => document.getElementById('shop-add-name').focus(), 350);
+
+  backdrop.addEventListener('click', closeShoppingAddPopup, { once: true });
+
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const name = document.getElementById('shop-add-name').value.trim();
+    const qty  = document.getElementById('shop-add-qty').value.trim();
+    const unit = document.getElementById('shop-add-unit').value.trim();
+    if (!name) return;
+
+    ShoppingDB.addManual(name, qty, unit);
+    updateShoppingBadge();
+    closeShoppingAddPopup();
+    renderShopping();
+    showToast('Item added to shopping list 🛒');
+  };
+}
+
+function closeShoppingAddPopup() {
+  document.getElementById('shop-add-picker').classList.remove('open');
+}
+
+
 /* ── Boot ────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   seedIfEmpty();
@@ -856,8 +919,14 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => navigate(btn.dataset.page));
   });
 
-  // Add recipe button in header
-  document.getElementById('btn-add-recipe').addEventListener('click', () => navigate('add'));
+  // Add button in header – context-aware per page
+  document.getElementById('btn-add-recipe').addEventListener('click', () => {
+    if (currentPage === 'shopping') {
+      openShoppingAddPopup();
+    } else {
+      navigate('add');
+    }
+  });
 
   // Back button
   document.getElementById('back-btn').addEventListener('click', goBack);
