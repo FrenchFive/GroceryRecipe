@@ -49,7 +49,7 @@ cp "$SCRIPT_DIR/manifest.json" "$DIST/"
 cp "$SCRIPT_DIR/css/style.css" "$DIST/css/"
 cp "$SCRIPT_DIR/js/db.js"      "$DIST/js/"
 cp "$SCRIPT_DIR/js/app.js"     "$DIST/js/"
-cp "$SCRIPT_DIR/js/lucide.min.js" "$DIST/js/"
+# lucide.min.js no longer needed – icons are inline SVGs in app.js
 cp "$SCRIPT_DIR/icons/"*.png   "$DIST/icons/"
 
 # ── 3. Write service worker with versioned cache name ─────
