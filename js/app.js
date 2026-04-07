@@ -844,7 +844,7 @@ function renderPlanner() {
   const selPlan = plan[selDay] || { breakfast: [], lunch: [], dinner: [] };
 
   const todayBtn = plannerWeekOffset !== 0
-    ? `<button class="cal-today-btn" id="planner-today">Today</button>`
+    ? `<button class="cal-today-btn" id="planner-today">${icon('arrow-left', 14)} Back to Today</button>`
     : '';
 
   /* ── Horizontal day strip ──── */

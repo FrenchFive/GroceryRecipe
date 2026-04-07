@@ -814,16 +814,24 @@ img.emoji.recipe-photo {
   text-transform: uppercase;
 }
 .cal-today-btn {
-  background: var(--green-bg);
-  border: 2px solid var(--green);
-  color: var(--green);
+  background: var(--green);
+  border: 2px solid var(--border);
+  color: #fff;
   font-size: .7rem;
   font-weight: 800;
-  padding: 3px 12px;
+  padding: 5px 14px;
   border-radius: var(--radius);
   cursor: pointer;
   font-family: inherit;
   text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
+}
+.cal-today-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
 }
 
 /* ── Horizontal day strip ────────────────────────────────── */
