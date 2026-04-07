@@ -19,9 +19,6 @@
 
 /* ── Dark mode ───────────────────────────────────────────── */
 [data-theme="dark"] {
-  --green: #43a047;
-  --green-light: #66bb6a;
-  --green-bg: #1b3a1e;
   --red: #ef5350;
   --text: #e0e0e0;
   --text-muted: #9e9e9e;
@@ -997,6 +994,40 @@ html, body {
   cursor: pointer;
 }
 .setting-select:focus { border-color: var(--green); }
+
+/* ── Color picker swatches ───────────────────────────────── */
+.color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+.color-swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  background: var(--swatch-color);
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .2s, transform .15s;
+  flex-shrink: 0;
+}
+.color-swatch:active { transform: scale(.9); }
+.color-swatch.active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--card-bg);
+}
+.swatch-check {
+  color: #fff;
+  font-size: .85rem;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0,0,0,.4);
+  pointer-events: none;
+}
 
 .profile-footer {
   text-align: center;

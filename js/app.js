@@ -723,10 +723,20 @@ function closeMealPicker() {
 
 /* ── Theme ──────────────────────────────────────────────── */
 function applyTheme() {
-  const dark = PrefsDB.get('darkMode');
-  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const dark  = PrefsDB.get('darkMode');
+  const key   = PrefsDB.get('accentColor') || 'green';
+  const color = ACCENT_COLORS[key] || ACCENT_COLORS.green;
+  const root  = document.documentElement;
+
+  root.setAttribute('data-theme', dark ? 'dark' : 'light');
+
+  // Apply accent color CSS variables
+  root.style.setProperty('--green',       dark ? color.darkMain  : color.main);
+  root.style.setProperty('--green-light', dark ? color.darkLight : color.light);
+  root.style.setProperty('--green-bg',    dark ? color.darkBg    : color.bg);
+
   const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) metaTheme.content = dark ? '#1e1e1e' : '#2e7d32';
+  if (metaTheme) metaTheme.content = dark ? '#1e1e1e' : color.main;
 }
 
 /* ── Profile page ───────────────────────────────────────── */
@@ -776,6 +786,23 @@ function renderProfile() {
             <span class="toggle-track"></span>
           </label>
         </div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+          <div class="setting-label">
+            <span class="setting-label-text">Accent Color</span>
+            <span class="setting-label-desc">Personalize the app's look</span>
+          </div>
+          <div class="color-picker" id="color-picker">
+            ${Object.entries(ACCENT_COLORS).map(([key, c]) => `
+              <button class="color-swatch${prefs.accentColor === key ? ' active' : ''}"
+                      data-color="${key}"
+                      style="--swatch-color:${c.main};"
+                      aria-label="${c.label}"
+                      title="${c.label}">
+                ${prefs.accentColor === key ? '<span class="swatch-check">&#10003;</span>' : ''}
+              </button>
+            `).join('')}
+          </div>
+        </div>
       </div>
     </div>
 
@@ -820,6 +847,21 @@ function renderProfile() {
   document.getElementById('pref-dark-mode').addEventListener('change', e => {
     PrefsDB.set('darkMode', e.target.checked);
     applyTheme();
+  });
+
+  // Accent color picker
+  document.querySelectorAll('#color-picker .color-swatch').forEach(btn => {
+    btn.addEventListener('click', () => {
+      PrefsDB.set('accentColor', btn.dataset.color);
+      applyTheme();
+      // Update active swatch visually
+      document.querySelectorAll('#color-picker .color-swatch').forEach(s => {
+        s.classList.remove('active');
+        s.innerHTML = '';
+      });
+      btn.classList.add('active');
+      btn.innerHTML = '<span class="swatch-check">&#10003;</span>';
+    });
   });
 
   // Default servings
