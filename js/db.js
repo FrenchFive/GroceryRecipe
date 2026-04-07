@@ -2,7 +2,7 @@
  * db.js – localStorage-backed data layer
  *
  * Schemas:
- *   Recipe  { id, name, emoji, servings, ingredients:[{name,qty,unit}], steps:[string], createdAt }
+ *   Recipe  { id, name, emoji, photo, servings, ingredients:[{name,qty,unit}], steps:[string], createdAt }
  *   ShopItem{ id, name, qty, unit, checked, source, recipeId }
  *   Plan    { [weekKey]: { [day]: { breakfast, lunch, dinner } } }
  *             weekKey = 'YYYY-MM-DD' of that week's Monday

@@ -97,6 +97,12 @@ function goBack() {
   else navigate('recipes');
 }
 
+/* ── Recipe visual helper (photo or emoji) ──────────────── */
+function recipeVisual(r, cls) {
+  if (r && r.photo) return `<img class="${cls} recipe-photo" src="${r.photo}" alt="">`;
+  return `<span class="${cls}">${(r && r.emoji) || '🍽'}</span>`;
+}
+
 /* ── Recipes page ────────────────────────────────────────── */
 function renderRecipes(filter = '') {
   const list = RecipeDB.search(filter);
@@ -113,7 +119,7 @@ function renderRecipes(filter = '') {
 
   container.innerHTML = list.map(r => `
     <div class="recipe-item" data-id="${r.id}" role="button" tabindex="0">
-      <span class="recipe-emoji">${r.emoji || '🍽'}</span>
+      ${recipeVisual(r, 'recipe-emoji')}
       <div class="recipe-info">
         <h3>${escHtml(r.name)}</h3>
         <p>${r.ingredients.length} ingredients &bull; serves ${r.servings}</p>
@@ -141,7 +147,7 @@ function renderDetail(id) {
   const page = document.getElementById('page-detail');
   page.innerHTML = `
     <div class="detail-header">
-      <div class="emoji">${r.emoji || '🍽'}</div>
+      ${r.photo ? `<img class="emoji recipe-photo" src="${r.photo}" alt="">` : `<div class="emoji">${r.emoji || '🍽'}</div>`}
       <h2>${escHtml(r.name)}</h2>
       <p>Base: ${r.servings} serving${r.servings > 1 ? 's' : ''}</p>
     </div>
@@ -237,16 +243,27 @@ function renderAddForm(editId) {
           <input type="text" id="f-name" placeholder="e.g. Spaghetti Bolognese"
                  value="${r ? escHtml(r.name) : ''}" required>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div class="form-group">
-            <label>Emoji</label>
+        <div class="form-group">
+          <label>Photo or Emoji</label>
+          <div class="photo-emoji-toggle">
+            <button type="button" class="toggle-btn ${r && r.photo ? '' : 'active'}" id="tog-emoji">Emoji</button>
+            <button type="button" class="toggle-btn ${r && r.photo ? 'active' : ''}" id="tog-photo">Photo</button>
+          </div>
+          <div id="emoji-input-wrap" style="${r && r.photo ? 'display:none' : ''}">
             <input type="text" id="f-emoji" placeholder="🍽" maxlength="4"
                    value="${r ? r.emoji : ''}">
           </div>
-          <div class="form-group">
-            <label>Base Servings *</label>
-            <input type="number" id="f-servings" min="1" value="${r ? r.servings : PrefsDB.get('defaultServings')}" required>
+          <div id="photo-input-wrap" style="${r && r.photo ? '' : 'display:none'}">
+            <input type="file" id="f-photo" accept="image/*" capture="environment" style="display:none">
+            <div id="photo-preview" class="photo-preview ${r && r.photo ? 'has-photo' : ''}">
+              ${r && r.photo ? `<img src="${r.photo}" alt="Recipe photo">` : '<span class="photo-placeholder">📷 Tap to take or choose a photo</span>'}
+            </div>
+            <button type="button" class="btn btn-outline btn-full mt-8" id="clear-photo-btn" style="${r && r.photo ? '' : 'display:none'}">✕ Remove Photo</button>
           </div>
+        </div>
+        <div class="form-group">
+          <label>Base Servings *</label>
+          <input type="number" id="f-servings" min="1" value="${r ? r.servings : PrefsDB.get('defaultServings')}" required>
         </div>
       </div>
 
@@ -315,6 +332,61 @@ function renderAddForm(editId) {
   document.getElementById('add-ing-btn').addEventListener('click',  () => addIngRow());
   document.getElementById('add-step-btn').addEventListener('click', () => addStepRow());
 
+  // Photo / Emoji toggle
+  let pendingPhoto = r ? r.photo || null : null;
+  const togEmoji   = document.getElementById('tog-emoji');
+  const togPhoto   = document.getElementById('tog-photo');
+  const emojiWrap  = document.getElementById('emoji-input-wrap');
+  const photoWrap  = document.getElementById('photo-input-wrap');
+  const photoInput = document.getElementById('f-photo');
+  const preview    = document.getElementById('photo-preview');
+  const clearBtn   = document.getElementById('clear-photo-btn');
+
+  togEmoji.addEventListener('click', () => {
+    togEmoji.classList.add('active'); togPhoto.classList.remove('active');
+    emojiWrap.style.display = ''; photoWrap.style.display = 'none';
+  });
+  togPhoto.addEventListener('click', () => {
+    togPhoto.classList.add('active'); togEmoji.classList.remove('active');
+    emojiWrap.style.display = 'none'; photoWrap.style.display = '';
+  });
+
+  preview.addEventListener('click', () => photoInput.click());
+
+  photoInput.addEventListener('change', () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 512;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          const ratio = Math.min(MAX / w, MAX / h);
+          w = Math.round(w * ratio); h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        pendingPhoto = canvas.toDataURL('image/jpeg', 0.7);
+        preview.innerHTML = `<img src="${pendingPhoto}" alt="Recipe photo">`;
+        preview.classList.add('has-photo');
+        clearBtn.style.display = '';
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    pendingPhoto = null;
+    photoInput.value = '';
+    preview.innerHTML = '<span class="photo-placeholder">📷 Tap to take or choose a photo</span>';
+    preview.classList.remove('has-photo');
+    clearBtn.style.display = 'none';
+  });
+
   document.getElementById('recipe-form').addEventListener('submit', e => {
     e.preventDefault();
     const name = document.getElementById('f-name').value.trim();
@@ -332,10 +404,12 @@ function renderAddForm(editId) {
       .map(t => t.value.trim())
       .filter(Boolean);
 
+    const usePhoto = togPhoto.classList.contains('active') && pendingPhoto;
     const recipe = {
       ...(r || {}),
       name,
-      emoji:     document.getElementById('f-emoji').value.trim() || '🍽',
+      emoji:     usePhoto ? '' : (document.getElementById('f-emoji').value.trim() || '🍽'),
+      photo:     usePhoto ? pendingPhoto : null,
       servings:  Math.max(1, parseInt(document.getElementById('f-servings').value) || 1),
       ingredients,
       steps
@@ -557,7 +631,7 @@ function renderPlanner() {
     const recipe = rid ? RecipeDB.get(rid) : null;
     const body   = recipe
       ? `<div class="cal-card-recipe">
-           <span class="cal-card-emoji">${recipe.emoji || '🍽'}</span>
+           ${recipeVisual(recipe, 'cal-card-emoji')}
            <div class="cal-card-info">
              <span class="cal-card-name">${escHtml(recipe.name)}</span>
              <span class="cal-card-meta">${recipe.ingredients.length} ingredients · serves ${recipe.servings}</span>
@@ -696,7 +770,7 @@ function openMealPicker(wk, day, meal) {
     </button>
     ${recipes.map(r => `
       <button class="meal-picker-item" data-id="${r.id}">
-        <span class="mpi-emoji">${r.emoji || '🍽'}</span>
+        ${recipeVisual(r, 'mpi-emoji')}
         <span class="mpi-name">${escHtml(r.name)}</span>
       </button>
     `).join('')}
