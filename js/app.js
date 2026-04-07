@@ -52,8 +52,9 @@ function navigate(page) {
 
   // show/hide back & add buttons
   const inDetail = page === 'detail' || page === 'add' || page === 'edit';
+  const hideAdd  = inDetail || page === 'planner';
   document.getElementById('back-btn').style.display = inDetail ? 'flex' : 'none';
-  document.getElementById('btn-add-recipe').style.display = inDetail ? 'none' : 'flex';
+  document.getElementById('btn-add-recipe').style.display = hideAdd ? 'none' : 'flex';
   document.getElementById('bottom-nav').style.display = inDetail ? 'none' : 'flex';
 
   // Render the page content
@@ -766,18 +767,6 @@ function closeShoppingAddPopup() {
   document.getElementById('shop-add-picker').classList.remove('open');
 }
 
-/* ── Planner FAB → open meal picker for first empty slot ── */
-function openPlannerAddFromFab() {
-  const wk      = getPlannerWk();
-  const plan    = PlanDB.allForWeek(wk);
-  const selIdx  = getEffectiveSelIdx(new Date());
-  const selDay  = DAYS[selIdx];
-  const selPlan = plan[selDay] || { breakfast: null, lunch: null, dinner: null };
-
-  // Find first empty meal slot for the selected day
-  const emptyMeal = MEALS.find(m => !selPlan[m]) || 'dinner';
-  openMealPicker(wk, selDay, emptyMeal);
-}
 
 /* ── Boot ────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -792,8 +781,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-add-recipe').addEventListener('click', () => {
     if (currentPage === 'shopping') {
       openShoppingAddPopup();
-    } else if (currentPage === 'planner') {
-      openPlannerAddFromFab();
     } else {
       navigate('add');
     }
