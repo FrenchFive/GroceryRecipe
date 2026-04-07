@@ -617,6 +617,53 @@ html, body {
 }
 .cal-card-arrow { font-size: 1.3rem; color: var(--text-muted); flex-shrink: 0; }
 
+/* ── Planner servings control ───────────────────────────── */
+.cal-servings-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+}
+.cal-servings-row label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.cal-servings-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--green-bg);
+  border-radius: 16px;
+  padding: 3px 8px;
+}
+.cal-srv-btn {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: var(--green);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+  padding: 0;
+  line-height: 1;
+}
+.cal-srv-btn:hover { background: rgba(0,0,0,.08); }
+.cal-srv-val {
+  font-size: .9rem;
+  font-weight: 700;
+  min-width: 18px;
+  text-align: center;
+}
+
 .cal-card-add {
   display: flex;
   align-items: center;
