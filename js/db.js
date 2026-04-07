@@ -11,6 +11,7 @@
 const DB_RECIPES   = 'gr_recipes';
 const DB_SHOPPING  = 'gr_shopping';
 const DB_PLAN      = 'gr_plan';
+const DB_PREFS     = 'gr_prefs';
 
 const DAYS         = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const DAYS_SHORT   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -183,6 +184,26 @@ const PlanDB = {
     delete raw[wk];
     save(DB_PLAN, raw);
   }
+};
+
+/* ── User preferences ───────────────────────────────────── */
+const PREF_DEFAULTS = {
+  darkMode: false,
+  defaultServings: 2
+};
+
+const PrefsDB = {
+  all() { return { ...PREF_DEFAULTS, ...load(DB_PREFS, {}) }; },
+
+  get(key) { return this.all()[key]; },
+
+  set(key, value) {
+    const prefs = this.all();
+    prefs[key] = value;
+    save(DB_PREFS, prefs);
+  },
+
+  reset() { save(DB_PREFS, {}); }
 };
 
 /* ── Seed data ───────────────────────────────────────────── */
