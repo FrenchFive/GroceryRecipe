@@ -731,6 +731,54 @@ function escHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+/* ── Shopping add popup ──────────────────────────────────── */
+function openShoppingAddPopup() {
+  const picker   = document.getElementById('shop-add-picker');
+  const backdrop = document.getElementById('shop-add-backdrop');
+  const form     = document.getElementById('shop-add-form');
+
+  // Reset fields
+  document.getElementById('shop-add-name').value = '';
+  document.getElementById('shop-add-qty').value  = '';
+  document.getElementById('shop-add-unit').value = '';
+
+  picker.classList.add('open');
+  setTimeout(() => document.getElementById('shop-add-name').focus(), 350);
+
+  backdrop.addEventListener('click', closeShoppingAddPopup, { once: true });
+
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const name = document.getElementById('shop-add-name').value.trim();
+    const qty  = document.getElementById('shop-add-qty').value.trim();
+    const unit = document.getElementById('shop-add-unit').value.trim();
+    if (!name) return;
+
+    ShoppingDB.addManual(name, qty, unit);
+    updateShoppingBadge();
+    closeShoppingAddPopup();
+    renderShopping();
+    showToast('Item added to shopping list 🛒');
+  };
+}
+
+function closeShoppingAddPopup() {
+  document.getElementById('shop-add-picker').classList.remove('open');
+}
+
+/* ── Planner FAB → open meal picker for first empty slot ── */
+function openPlannerAddFromFab() {
+  const wk      = getPlannerWk();
+  const plan    = PlanDB.allForWeek(wk);
+  const selIdx  = getEffectiveSelIdx(new Date());
+  const selDay  = DAYS[selIdx];
+  const selPlan = plan[selDay] || { breakfast: null, lunch: null, dinner: null };
+
+  // Find first empty meal slot for the selected day
+  const emptyMeal = MEALS.find(m => !selPlan[m]) || 'dinner';
+  openMealPicker(wk, selDay, emptyMeal);
+}
+
 /* ── Boot ────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   seedIfEmpty();
@@ -740,8 +788,16 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => navigate(btn.dataset.page));
   });
 
-  // Add recipe button in header
-  document.getElementById('btn-add-recipe').addEventListener('click', () => navigate('add'));
+  // Add button in header – context-aware per page
+  document.getElementById('btn-add-recipe').addEventListener('click', () => {
+    if (currentPage === 'shopping') {
+      openShoppingAddPopup();
+    } else if (currentPage === 'planner') {
+      openPlannerAddFromFab();
+    } else {
+      navigate('add');
+    }
+  });
 
   // Back button
   document.getElementById('back-btn').addEventListener('click', goBack);

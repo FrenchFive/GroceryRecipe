@@ -136,6 +136,29 @@ const ShoppingDB = {
 
   clearAll() { save(DB_SHOPPING, []); },
 
+  addManual(name, qty, unit) {
+    const list = this.all();
+    const existing = list.find(
+      i => i.name.toLowerCase() === name.toLowerCase() && i.unit === unit
+    );
+    if (existing) {
+      const parsed = parseFloat(existing.qty);
+      const add    = parseFloat(qty);
+      existing.qty = isNaN(parsed) ? existing.qty : String(Math.round((parsed + add) * 100) / 100);
+    } else {
+      list.push({
+        id:       uid(),
+        name:     name,
+        qty:      qty || '',
+        unit:     unit || '',
+        checked:  false,
+        source:   'Manual',
+        recipeId: null
+      });
+    }
+    save(DB_SHOPPING, list);
+  },
+
   count() { return this.all().filter(i => !i.checked).length; }
 };
 

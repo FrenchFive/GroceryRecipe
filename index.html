@@ -84,6 +84,32 @@
   </div>
 </div>
 
+<!-- ── Add shopping item bottom sheet ─────────────────────── -->
+<div id="shop-add-picker" aria-modal="true" role="dialog" aria-labelledby="shop-add-title">
+  <div id="shop-add-backdrop"></div>
+  <div id="shop-add-sheet">
+    <div class="picker-handle"></div>
+    <div id="shop-add-title">Add Item</div>
+    <form id="shop-add-form" autocomplete="off">
+      <div class="shop-add-field">
+        <label for="shop-add-name">Item name</label>
+        <input type="text" id="shop-add-name" placeholder="e.g. Milk" required>
+      </div>
+      <div class="shop-add-row">
+        <div class="shop-add-field" style="flex:1">
+          <label for="shop-add-qty">Qty</label>
+          <input type="text" id="shop-add-qty" placeholder="1" inputmode="decimal">
+        </div>
+        <div class="shop-add-field" style="flex:1">
+          <label for="shop-add-unit">Unit</label>
+          <input type="text" id="shop-add-unit" placeholder="e.g. L, kg">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px;">Add to list</button>
+    </form>
+  </div>
+</div>
+
 <script src="js/db.js"></script>
 <script src="js/app.js"></script>
 </body>
