@@ -66,6 +66,103 @@ function load(key, fallback) {
 function save(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
+/* ── Unit system ────────────────────────────────────────── */
+
+/** Conversion factors within each category (to a base unit). */
+const UNIT_CONVERSIONS = {
+  mass:   { mg: 0.001, g: 1, kg: 1000 },
+  volume: { ml: 1, l: 1000 },
+  spoon:  { tsp: 1, tbsp: 3 },
+};
+
+/** Ordered lists of units per category (smallest → largest). */
+const UNIT_ORDER = {
+  mass:   ['mg', 'g', 'kg'],
+  volume: ['ml', 'l'],
+  spoon:  ['tsp', 'tbsp'],
+};
+
+/** All selectable units grouped by category. */
+const UNIT_OPTIONS = [
+  { value: '',         label: 'unit',     category: 'count' },
+  { value: 'mg',       label: 'mg',       category: 'mass' },
+  { value: 'g',        label: 'g',        category: 'mass' },
+  { value: 'kg',       label: 'kg',       category: 'mass' },
+  { value: 'ml',       label: 'ml',       category: 'volume' },
+  { value: 'l',        label: 'l',        category: 'volume' },
+  { value: 'tsp',      label: 'tsp',      category: 'spoon' },
+  { value: 'tbsp',     label: 'tbsp',     category: 'spoon' },
+  { value: 'pinch',    label: 'pinch',    category: 'other' },
+  { value: 'head',     label: 'head',     category: 'other' },
+  { value: 'clove',    label: 'clove',    category: 'other' },
+  { value: 'slice',    label: 'slice',    category: 'other' },
+  { value: 'bunch',    label: 'bunch',    category: 'other' },
+  { value: 'can',      label: 'can',      category: 'other' },
+  { value: 'to taste', label: 'to taste', category: 'other' },
+];
+
+/** Return the category string for a given unit ('mass', 'volume', 'spoon', 'count', 'other'). */
+function getUnitCategory(unit) {
+  const u = (unit || '').trim().toLowerCase();
+  for (const [cat, conversions] of Object.entries(UNIT_CONVERSIONS)) {
+    if (u in conversions) return cat;
+  }
+  if (u === '' || u === 'unit') return 'count';
+  return 'other';
+}
+
+/** Pick the best display unit for a base-unit quantity (largest where value >= 1). */
+function pickBestUnit(baseQty, category) {
+  const order = UNIT_ORDER[category];
+  const conv  = UNIT_CONVERSIONS[category];
+  if (!order || !conv) return '';
+  for (let i = order.length - 1; i >= 0; i--) {
+    if (baseQty / conv[order[i]] >= 1) return order[i];
+  }
+  return order[0]; // fall back to smallest
+}
+
+/**
+ * Merge an array of {qty, unit} into a display string.
+ * Converts within categories, shows separate entries for different categories.
+ * E.g. [{qty:'200',unit:'ml'},{qty:'1',unit:'l'},{qty:'2',unit:'tbsp'}] → "1.2 l + 2 tbsp"
+ */
+function mergeQtyUnits(items) {
+  const byCategory = {};
+  items.forEach(({ qty, unit }) => {
+    const cat = getUnitCategory(unit);
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push({ qty: parseFloat(qty), unit });
+  });
+
+  const parts = [];
+  for (const [cat, entries] of Object.entries(byCategory)) {
+    const conv = UNIT_CONVERSIONS[cat];
+    if (conv) {
+      let baseSum = 0;
+      entries.forEach(({ qty, unit }) => {
+        if (!isNaN(qty)) baseSum += qty * (conv[unit] || 1);
+      });
+      const best = pickBestUnit(baseSum, cat);
+      const displayQty = Math.round((baseSum / (conv[best] || 1)) * 100) / 100;
+      parts.push(`${displayQty} ${best}`);
+    } else {
+      // No conversion — group by exact unit and sum
+      const byUnit = {};
+      entries.forEach(({ qty, unit }) => {
+        const u = unit || '';
+        if (!byUnit[u]) byUnit[u] = 0;
+        if (!isNaN(qty)) byUnit[u] += qty;
+      });
+      for (const [u, total] of Object.entries(byUnit)) {
+        const displayQty = Math.round(total * 100) / 100;
+        parts.push(`${displayQty}${u ? ' ' + u : ''}`);
+      }
+    }
+  }
+  return parts.join(' + ');
+}
+
 /* ── Recipes ─────────────────────────────────────────────── */
 const RecipeDB = {
   all() { return load(DB_RECIPES, []); },
@@ -93,6 +190,17 @@ const RecipeDB = {
     const term = q.trim().toLowerCase();
     if (!term) return this.all();
     return this.all().filter(r => r.name.toLowerCase().includes(term));
+  },
+
+  /** Return all unique ingredient names across every recipe (sorted). */
+  allIngredientNames() {
+    const names = new Set();
+    this.all().forEach(r => {
+      r.ingredients.forEach(i => {
+        if (i.name.trim()) names.add(i.name.trim());
+      });
+    });
+    return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
 };
 
@@ -103,13 +211,42 @@ const ShoppingDB = {
   addFromRecipe(recipe, multiplier = 1) {
     const list = this.all();
     recipe.ingredients.forEach(ing => {
-      const existing = list.find(
-        i => i.name.toLowerCase() === ing.name.toLowerCase() && i.unit === ing.unit
-      );
-      if (existing) {
+      const ingCat  = getUnitCategory(ing.unit);
+      const conv    = UNIT_CONVERSIONS[ingCat];
+      const addQty  = parseFloat(ing.qty) * multiplier;
+
+      // Find existing item with same name and convertible unit (same category)
+      const existing = list.find(i => {
+        if (i.name.toLowerCase() !== ing.name.toLowerCase()) return false;
+        const existCat = getUnitCategory(i.unit);
+        if (existCat !== ingCat) return false;
+        // For categories without conversion, require exact unit match
+        return conv ? true : (i.unit || '') === (ing.unit || '');
+      });
+
+      if (existing && conv && !isNaN(addQty)) {
+        // Convert both to base unit, sum, pick best display unit
+        const existBase = parseFloat(existing.qty) * (conv[existing.unit] || 1);
+        const addBase   = addQty * (conv[ing.unit] || 1);
+        if (!isNaN(existBase)) {
+          const totalBase = existBase + addBase;
+          const best      = pickBestUnit(totalBase, ingCat);
+          existing.qty  = String(Math.round((totalBase / (conv[best] || 1)) * 100) / 100);
+          existing.unit = best;
+        }
+        // Track multiple sources
+        if (existing.source && !existing.source.includes(recipe.name)) {
+          existing.source += ', ' + recipe.name;
+        }
+      } else if (existing) {
+        // Same category, no conversion (count/other) — simple add
         const parsed = parseFloat(existing.qty);
-        const add    = parseFloat(ing.qty) * multiplier;
-        existing.qty = isNaN(parsed) ? existing.qty : String(Math.round((parsed + add) * 100) / 100);
+        if (!isNaN(parsed) && !isNaN(addQty)) {
+          existing.qty = String(Math.round((parsed + addQty) * 100) / 100);
+        }
+        if (existing.source && !existing.source.includes(recipe.name)) {
+          existing.source += ', ' + recipe.name;
+        }
       } else {
         list.push({
           id:       uid(),

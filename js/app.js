@@ -233,7 +233,7 @@ function renderAddForm(editId) {
         <div class="ingredient-header">
           <span>Name</span>
           <span>Qty</span>
-          <span>Unit</span>
+          <span class="ing-unit-hdr">Unit</span>
           <span></span>
         </div>
         <div id="ing-rows"></div>
@@ -256,17 +256,89 @@ function renderAddForm(editId) {
   const ingContainer  = document.getElementById('ing-rows');
   const stepContainer = document.getElementById('step-rows');
 
-  function addIngRow(name = '', qty = '', unit = '') {
+  // Build autocomplete datalist from all existing ingredient names
+  let datalist = document.getElementById('ing-suggestions');
+  if (datalist) datalist.remove();
+  datalist = document.createElement('datalist');
+  datalist.id = 'ing-suggestions';
+  const knownNames = RecipeDB.allIngredientNames();
+  datalist.innerHTML = knownNames.map(n => `<option value="${escHtml(n)}">`).join('');
+  document.body.appendChild(datalist);
+
+  // Build unit <select> options HTML (grouped by category)
+  const unitOptHtml = (() => {
+    const cats = [
+      { label: 'Count',  units: UNIT_OPTIONS.filter(u => u.category === 'count') },
+      { label: 'Mass',   units: UNIT_OPTIONS.filter(u => u.category === 'mass') },
+      { label: 'Volume', units: UNIT_OPTIONS.filter(u => u.category === 'volume') },
+      { label: 'Spoon',  units: UNIT_OPTIONS.filter(u => u.category === 'spoon') },
+      { label: 'Other',  units: UNIT_OPTIONS.filter(u => u.category === 'other') },
+    ];
+    return cats.map(c =>
+      `<optgroup label="${c.label}">${c.units.map(u =>
+        `<option value="${escHtml(u.value)}">${escHtml(u.label)}</option>`
+      ).join('')}</optgroup>`
+    ).join('');
+  })();
+
+  function addIngRow(name = '', qty = '', unit = '', focus = false) {
     const div = document.createElement('div');
     div.className = 'ingredient-row';
     div.innerHTML = `
-      <input type="text"   class="ing-name" placeholder="Flour"  value="${escHtml(name)}">
-      <input type="text"   class="ing-qty"  placeholder="200"    value="${escHtml(qty)}">
-      <input type="text"   class="ing-unit" placeholder="g"      value="${escHtml(unit)}">
+      <input type="text" class="ing-name" placeholder="Flour" value="${escHtml(name)}" list="ing-suggestions" autocomplete="off">
+      <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
+      <div class="unit-ctrl">
+        <button type="button" class="unit-mag-btn unit-down" aria-label="Smaller unit">−</button>
+        <select class="ing-unit">${unitOptHtml}</select>
+        <button type="button" class="unit-mag-btn unit-up" aria-label="Larger unit">+</button>
+      </div>
       <button type="button" class="remove-btn" aria-label="Remove">✕</button>
     `;
+    // Set selected unit
+    const sel = div.querySelector('.ing-unit');
+    const matchOpt = [...sel.options].find(o => o.value === (unit || ''));
+    if (matchOpt) matchOpt.selected = true;
+    else if (unit) {
+      // If legacy unit not in list, add it as custom option
+      const opt = document.createElement('option');
+      opt.value = unit; opt.textContent = unit; opt.selected = true;
+      sel.appendChild(opt);
+    }
+
+    // Magnitude +/- : cycle to next/prev unit in same category & adjust qty
+    div.querySelector('.unit-up').addEventListener('click', () => shiftUnit(div, 1));
+    div.querySelector('.unit-down').addEventListener('click', () => shiftUnit(div, -1));
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
     ingContainer.appendChild(div);
+
+    if (focus) {
+      const nameInput = div.querySelector('.ing-name');
+      setTimeout(() => nameInput.focus(), 0);
+    }
+  }
+
+  function shiftUnit(row, dir) {
+    const sel     = row.querySelector('.ing-unit');
+    const qtyEl   = row.querySelector('.ing-qty');
+    const curUnit = sel.value;
+    const cat     = getUnitCategory(curUnit);
+    const order   = UNIT_ORDER[cat];
+    const conv    = UNIT_CONVERSIONS[cat];
+    if (!order || !conv) return; // no conversion possible
+
+    const idx = order.indexOf(curUnit);
+    if (idx < 0) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= order.length) return;
+
+    const newUnit = order[newIdx];
+    const curQty  = parseFloat(qtyEl.value);
+    if (!isNaN(curQty)) {
+      const base   = curQty * conv[curUnit];
+      const newQty = Math.round((base / conv[newUnit]) * 1000) / 1000;
+      qtyEl.value  = newQty;
+    }
+    sel.value = newUnit;
   }
 
   function addStepRow(text = '') {
@@ -286,10 +358,10 @@ function renderAddForm(editId) {
     r.steps.forEach(s => addStepRow(s));
   } else {
     addIngRow(); addIngRow();
-    addStepRow(); addStepRow();
+    addStepRow(); // Only 1 blank step by default
   }
 
-  document.getElementById('add-ing-btn').addEventListener('click',  () => addIngRow());
+  document.getElementById('add-ing-btn').addEventListener('click',  () => addIngRow('', '', '', true));
   document.getElementById('add-step-btn').addEventListener('click', () => addStepRow());
 
   document.getElementById('recipe-form').addEventListener('submit', e => {
@@ -345,20 +417,39 @@ function renderShopping() {
   });
 }
 
+/** Group shopping items by name for merged display. */
+function groupShoppingItems(items) {
+  const map = {};
+  items.forEach(item => {
+    const key = item.name.toLowerCase();
+    if (!map[key]) map[key] = { name: item.name, items: [] };
+    map[key].items.push(item);
+  });
+  return Object.values(map).map(g => {
+    const allChecked = g.items.every(i => i.checked);
+    const ids = g.items.map(i => i.id);
+    const sources = [...new Set(g.items.flatMap(i => (i.source || '').split(', ')).filter(Boolean))];
+    const qtyDisplay = mergeQtyUnits(g.items.map(i => ({ qty: i.qty, unit: i.unit })));
+    return { name: g.name, ids, checked: allChecked, sources, qtyDisplay };
+  });
+}
+
 function renderShoppingCurrent(page, tabs) {
   const items     = ShoppingDB.all();
-  const unchecked = items.filter(i => !i.checked);
-  const checked   = items.filter(i =>  i.checked);
+  const groups    = groupShoppingItems(items);
+  const unchecked = groups.filter(g => !g.checked);
+  const checked   = groups.filter(g =>  g.checked);
 
-  function itemHtml(i) {
-    return `<div class="shop-item${i.checked ? ' checked' : ''}" data-id="${i.id}">
-      <input type="checkbox" id="chk-${i.id}" ${i.checked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
-      <label for="chk-${i.id}">
-        ${escHtml(i.name)}
-        <span class="shop-source">from ${escHtml(i.source)}</span>
+  function groupHtml(g) {
+    const gId = g.ids[0]; // use first id as group identifier
+    return `<div class="shop-item${g.checked ? ' checked' : ''}" data-ids='${JSON.stringify(g.ids)}'>
+      <input type="checkbox" id="chk-${gId}" ${g.checked ? 'checked' : ''} aria-label="${escHtml(g.name)}">
+      <label for="chk-${gId}">
+        ${escHtml(g.name)}
+        <span class="shop-source">from ${g.sources.map(escHtml).join(', ')}</span>
       </label>
-      <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
-      <button class="shop-remove" data-id="${i.id}" aria-label="Remove">✕</button>
+      <span class="shop-qty">${escHtml(g.qtyDisplay)}</span>
+      <button class="shop-remove" data-ids='${JSON.stringify(g.ids)}' aria-label="Remove">✕</button>
     </div>`;
   }
 
@@ -376,25 +467,29 @@ function renderShoppingCurrent(page, tabs) {
       </div>`;
     body = actions + `
       <div class="card" id="shop-list">
-        ${unchecked.map(itemHtml).join('')}
+        ${unchecked.map(groupHtml).join('')}
         ${checked.length && unchecked.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
-        ${checked.map(itemHtml).join('')}
+        ${checked.map(groupHtml).join('')}
       </div>`;
   }
 
   page.innerHTML = tabs + body;
 
+  // Check/uncheck toggles all items in the group
   page.querySelectorAll('.shop-item input[type=checkbox]').forEach(chk => {
     chk.addEventListener('change', () => {
-      ShoppingDB.toggle(chk.closest('.shop-item').dataset.id);
+      const ids = JSON.parse(chk.closest('.shop-item').dataset.ids);
+      ids.forEach(id => ShoppingDB.toggle(id));
       updateShoppingBadge();
       renderShopping();
     });
   });
 
+  // Remove all items in the group
   page.querySelectorAll('.shop-remove').forEach(btn => {
     btn.addEventListener('click', () => {
-      ShoppingDB.remove(btn.dataset.id);
+      const ids = JSON.parse(btn.dataset.ids);
+      ids.forEach(id => ShoppingDB.remove(id));
       updateShoppingBadge();
       renderShopping();
     });
@@ -449,22 +544,23 @@ function renderShoppingNextWeek(page, tabs) {
     </div>`;
   } else {
     // Merge ingredients across all planned recipes (scaled by servings)
-    const ingMap = {};
+    // Group by ingredient name, then merge quantities within unit categories
+    const nameMap = {}; // name.lower → { name, entries: [{qty, unit}], sources: Set }
     meals.forEach(({ recipe, servings }) => {
       const mult = servings / recipe.servings;
       recipe.ingredients.forEach(ing => {
-        const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
+        const key = ing.name.toLowerCase();
+        if (!nameMap[key]) nameMap[key] = { name: ing.name, entries: [], sources: new Set() };
         const scaledQty = isNaN(parseFloat(ing.qty)) ? ing.qty : String(Math.round(parseFloat(ing.qty) * mult * 100) / 100);
-        if (ingMap[k]) {
-          const prev = parseFloat(ingMap[k].qty), add = parseFloat(scaledQty);
-          if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
-          if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
-        } else {
-          ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, sources: [recipe.name] };
-        }
+        nameMap[key].entries.push({ qty: scaledQty, unit: ing.unit });
+        nameMap[key].sources.add(recipe.name);
       });
     });
-    const ingList = Object.values(ingMap);
+    const ingList = Object.values(nameMap).map(g => ({
+      name: g.name,
+      qtyDisplay: mergeQtyUnits(g.entries),
+      sources: [...g.sources],
+    }));
 
     body = `
       <div class="next-week-header">
@@ -477,7 +573,7 @@ function renderShoppingNextWeek(page, tabs) {
         ${ingList.map(i => `
           <div class="shop-item-preview">
             <span class="shop-item-preview-name">${escHtml(i.name)}</span>
-            <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
+            <span class="shop-qty">${escHtml(i.qtyDisplay)}</span>
           </div>
           <span class="shop-source" style="padding:0 0 8px;display:block;">${i.sources.map(escHtml).join(', ')}</span>
         `).join('')}
