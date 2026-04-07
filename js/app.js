@@ -724,8 +724,8 @@ function closeMealPicker() {
 /* ── Theme ──────────────────────────────────────────────── */
 function applyTheme() {
   const dark  = PrefsDB.get('darkMode');
-  const key   = PrefsDB.get('accentColor') || 'green';
-  const color = ACCENT_COLORS[key] || ACCENT_COLORS.green;
+  const key   = PrefsDB.get('accentColor') || 'blue';
+  const color = ACCENT_COLORS[key] || ACCENT_COLORS.blue;
   const root  = document.documentElement;
 
   root.setAttribute('data-theme', dark ? 'dark' : 'light');

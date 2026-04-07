@@ -204,7 +204,7 @@ const ACCENT_COLORS = {
 const PREF_DEFAULTS = {
   darkMode: false,
   defaultServings: 2,
-  accentColor: 'green'
+  accentColor: 'blue'
 };
 
 const PrefsDB = {
