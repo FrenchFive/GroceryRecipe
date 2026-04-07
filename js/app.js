@@ -1430,7 +1430,24 @@ document.addEventListener('DOMContentLoaded', () => {
     renderRecipes(e.target.value);
   });
 
-  // Handle Android back gesture / browser back button
+  // Handle Android hardware back button via Capacitor App plugin
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    const CapApp = window.Capacitor.Plugins.App;
+    CapApp.addListener('backButton', () => {
+      const prevPage = navHistory.pop();
+      if (prevPage) {
+        handlingPopState = true;
+        navigate(prevPage);
+        handlingPopState = false;
+      } else if (currentPage !== 'recipes') {
+        navigate('recipes');
+      } else {
+        CapApp.exitApp();
+      }
+    });
+  }
+
+  // Handle browser back button (PWA / non-Capacitor fallback)
   window.addEventListener('popstate', () => {
     const prevPage = navHistory.pop();
     if (prevPage) {
@@ -1438,12 +1455,9 @@ document.addEventListener('DOMContentLoaded', () => {
       navigate(prevPage);
       handlingPopState = false;
     } else {
-      // No more history – push state back so next back will also be caught
-      // (prevents app from closing on first back press from a main page)
       history.pushState(null, '', '');
     }
   });
-  // Set initial history state so popstate fires instead of closing the app
   history.replaceState({ page: 'recipes' }, '', '');
   history.pushState(null, '', '');
 
