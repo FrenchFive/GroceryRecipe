@@ -135,13 +135,29 @@ html, body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .03em;
-  transition: color .15s;
+  transition: color .15s, background .15s;
 }
-.nav-btn .icon { font-size: 1.4rem; line-height: 1; }
+.nav-btn .icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  width: 40px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  transition: background .2s, color .2s;
+}
 .nav-btn .icon svg { width: 22px; height: 22px; }
 .nav-btn.active {
-  color: var(--green);
+  color: var(--text);
   font-weight: 900;
+}
+.nav-btn.active .icon {
+  background: var(--green);
+  color: #fff;
+  border: 2px solid var(--border);
+  box-shadow: 2px 2px 0 var(--border);
 }
 
 /* ── Cards ───────────────────────────────────────────────── */
@@ -609,6 +625,7 @@ img.emoji.recipe-photo {
   display: flex;
   background: var(--card-bg);
   border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 0;
   margin-bottom: 14px;
@@ -619,7 +636,7 @@ img.emoji.recipe-photo {
   padding: 12px 8px;
   background: none;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 0;
   font-size: .85rem;
   font-weight: 800;
   cursor: pointer;
@@ -646,6 +663,125 @@ img.emoji.recipe-photo {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: .04em;
+}
+
+/* ── Shopping add form ───────────────────────────────────── */
+.shop-add-form {
+  padding: 10px 12px;
+}
+.shop-add-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.shop-add-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .9rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--body-bg);
+  outline: none;
+}
+.shop-add-input:focus {
+  border-color: var(--green);
+}
+.shop-add-qty {
+  width: 52px;
+  padding: 10px 6px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .85rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--body-bg);
+  text-align: center;
+  outline: none;
+}
+.shop-add-unit {
+  width: 52px;
+  padding: 10px 6px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .85rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--body-bg);
+  text-align: center;
+  outline: none;
+}
+.shop-add-qty:focus, .shop-add-unit:focus {
+  border-color: var(--green);
+}
+.btn-icon {
+  background: var(--green);
+  color: #fff;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 2px 2px 0 var(--border);
+  transition: transform .1s, box-shadow .1s;
+}
+.btn-icon:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+.shop-add-options {
+  margin-top: 8px;
+  padding-left: 2px;
+}
+.shop-recurring-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.shop-recurring-toggle input[type=checkbox] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+/* ── Shopping section titles ─────────────────────────────── */
+.shop-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: .75rem;
+  font-weight: 900;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+/* ── Shopping share/export row ───────────────────────────── */
+.shop-share-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  padding-bottom: 24px;
+}
+.shop-share-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: .85rem;
 }
 
 /* ── Calendar planner ────────────────────────────────────── */
@@ -694,16 +830,24 @@ img.emoji.recipe-photo {
   text-transform: uppercase;
 }
 .cal-today-btn {
-  background: var(--green-bg);
-  border: 2px solid var(--green);
-  color: var(--green);
+  background: var(--green);
+  border: 2px solid var(--border);
+  color: #fff;
   font-size: .7rem;
   font-weight: 800;
-  padding: 3px 12px;
+  padding: 5px 14px;
   border-radius: var(--radius);
   cursor: pointer;
   font-family: inherit;
   text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
+}
+.cal-today-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
 }
 
 /* ── Horizontal day strip ────────────────────────────────── */
@@ -743,7 +887,10 @@ img.emoji.recipe-photo {
   letter-spacing: .06em;
   color: var(--text-muted);
 }
-.cal-strip-day.today .cal-strip-name { color: var(--green); }
+.cal-strip-day.today .cal-strip-name {
+  color: var(--green);
+  font-weight: 900;
+}
 .cal-strip-num {
   font-size: .95rem;
   font-weight: 900;
@@ -764,8 +911,23 @@ img.emoji.recipe-photo {
   box-shadow: 2px 2px 0 var(--border);
 }
 .cal-strip-day.today:not(.selected) .cal-strip-num {
-  color: var(--green);
-  border: 2px solid var(--green);
+  color: #fff;
+  background: var(--green);
+  border: 2px solid var(--border);
+  box-shadow: 2px 2px 0 var(--border);
+}
+.cal-strip-meals {
+  width: 6px;
+  height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.cal-strip-day.selected .cal-strip-meals {
+  background: #fff;
 }
 .cal-strip-dot {
   width: 6px;
@@ -1063,8 +1225,8 @@ img.mpi-emoji {
   border: 2px solid var(--border);
   padding: 1px 5px;
   position: absolute;
-  top: 2px;
-  right: 6px;
+  top: 0;
+  right: calc(50% - 28px);
 }
 .nav-btn { position: relative; }
 
@@ -1228,6 +1390,49 @@ img.mpi-emoji {
   outline: none;
   cursor: pointer;
   box-shadow: 2px 2px 0 var(--border);
+}
+
+/* ── Toggle switch ──────────────────────────────────────── */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--body-bg);
+  border: 2px solid var(--border);
+  border-radius: 28px;
+  transition: background .2s;
+  box-shadow: 2px 2px 0 var(--border);
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  transition: transform .2s;
+}
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--green);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateY(-50%) translateX(19px);
 }
 
 /* ── Color picker swatches ───────────────────────────────── */

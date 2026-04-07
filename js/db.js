@@ -48,6 +48,50 @@ function getWeekDates(wk) {
   });
 }
 
+/**
+ * Return the start-of-week Date for shopping, based on user's preferred shopping day.
+ * shoppingDay: 0=Monday … 6=Sunday (same indexing as DAYS array).
+ */
+function getShopWeekStart(date, shoppingDay) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  // Convert JS getDay() (0=Sun) to our index (0=Mon … 6=Sun)
+  const dow = d.getDay();
+  const ourIdx = dow === 0 ? 6 : dow - 1; // 0=Mon … 6=Sun
+  let diff = ourIdx - shoppingDay;
+  if (diff < 0) diff += 7;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+/** Week key for shopping (start date based on shopping day pref). */
+function shopWeekKey(date) {
+  const sd = PrefsDB.get('shoppingDay') || 0;
+  const start = getShopWeekStart(date, sd);
+  return `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+}
+
+/** Array of 7 Date objects for the shop week identified by `swk`. */
+function getShopWeekDates(swk) {
+  const [y, mo, dy] = swk.split('-').map(Number);
+  const start = new Date(y, mo - 1, dy);
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(start);
+    x.setDate(start.getDate() + i);
+    return x;
+  });
+}
+
+/** Human-readable range for a shop week key. */
+function formatShopWeekRange(swk) {
+  const dates = getShopWeekDates(swk);
+  const s = dates[0], e = dates[6];
+  const sm = MONTHS_SHORT[s.getMonth()], em = MONTHS_SHORT[e.getMonth()];
+  return s.getMonth() === e.getMonth()
+    ? `${sm} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}`
+    : `${sm} ${s.getDate()} – ${em} ${e.getDate()}, ${e.getFullYear()}`;
+}
+
 /** Human-readable range like "Jun 9 – 15, 2026" or "Jun 30 – Jul 6, 2026". */
 function formatWeekRange(wk) {
   const dates = getWeekDates(wk);
@@ -138,6 +182,57 @@ const ShoppingDB = {
   clearAll() { save(DB_SHOPPING, []); },
 
   count() { return this.all().filter(i => !i.checked).length; }
+};
+
+/* ── Custom (manual) shopping items ─────────────────────── */
+const DB_CUSTOM_ITEMS = 'gr_custom_items';
+
+const CustomItemsDB = {
+  all() { return load(DB_CUSTOM_ITEMS, []); },
+
+  add(name, qty, unit) {
+    const list = this.all();
+    list.push({ id: uid(), name, qty: qty || '', unit: unit || '', checked: false });
+    save(DB_CUSTOM_ITEMS, list);
+  },
+
+  toggle(id) {
+    const list = this.all();
+    const item = list.find(i => i.id === id);
+    if (item) { item.checked = !item.checked; save(DB_CUSTOM_ITEMS, list); }
+  },
+
+  remove(id) { save(DB_CUSTOM_ITEMS, this.all().filter(i => i.id !== id)); },
+
+  clearChecked() { save(DB_CUSTOM_ITEMS, this.all().filter(i => !i.checked)); },
+
+  count() { return this.all().filter(i => !i.checked).length; }
+};
+
+/* ── Recurring items (auto-added every week) ────────────── */
+const DB_RECURRING = 'gr_recurring_items';
+
+const RecurringDB = {
+  all() { return load(DB_RECURRING, []); },
+
+  add(name, qty, unit) {
+    const list = this.all();
+    list.push({ id: uid(), name, qty: qty || '', unit: unit || '' });
+    save(DB_RECURRING, list);
+  },
+
+  remove(id) { save(DB_RECURRING, this.all().filter(i => i.id !== id)); },
+
+  update(id, name, qty, unit) {
+    const list = this.all();
+    const item = list.find(i => i.id === id);
+    if (item) {
+      item.name = name;
+      item.qty = qty || '';
+      item.unit = unit || '';
+      save(DB_RECURRING, list);
+    }
+  }
 };
 
 /* ── Weekly planner ──────────────────────────────────────── */
@@ -251,7 +346,9 @@ const ACCENT_COLORS = {
 /* ── User preferences ───────────────────────────────────── */
 const PREF_DEFAULTS = {
   defaultServings: 2,
-  accentColor: 'blue'
+  accentColor: 'blue',
+  shoppingDay: 0,          // 0=Monday … 6=Sunday (which day the shopping week starts)
+  shoppingReminder: false  // Send a notification on shopping day
 };
 
 const PrefsDB = {

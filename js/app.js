@@ -434,8 +434,8 @@ function renderAddForm(editId) {
 
 /* ── Shopping page ───────────────────────────────────────── */
 
-/** Compute merged ingredient list from a week's plan. */
-function ingredientsForWeek(wk) {
+/** Compute merged ingredient list from a planner week (Mon-Sun). */
+function ingredientsForPlannerWeek(wk) {
   const plan = PlanDB.allForWeek(wk);
   const ingMap = {};
   DAYS.forEach(day => {
@@ -460,8 +460,50 @@ function ingredientsForWeek(wk) {
   return Object.values(ingMap);
 }
 
+/**
+ * Compute merged ingredient list for a shopping week (shopWeekKey).
+ * The shopping week may span two planner weeks if shopping day != Monday.
+ */
+function ingredientsForShopWeek(swk) {
+  const dates = getShopWeekDates(swk);
+  const ingMap = {};
+  dates.forEach(date => {
+    const planWk = weekKey(date);
+    const plan = PlanDB.allForWeek(planWk);
+    // Which day name is this date?
+    const dow = date.getDay();
+    const dayIdx = dow === 0 ? 6 : dow - 1;
+    const dayName = DAYS[dayIdx];
+    MEALS.forEach(meal => {
+      const rids = plan[dayName]?.[meal] || [];
+      rids.forEach(rid => {
+        const recipe = RecipeDB.get(rid);
+        if (!recipe) return;
+        recipe.ingredients.forEach(ing => {
+          const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
+          if (ingMap[k]) {
+            const prev = parseFloat(ingMap[k].qty), add = parseFloat(ing.qty);
+            if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
+            if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
+          } else {
+            ingMap[k] = { name: ing.name, qty: ing.qty, unit: ing.unit, sources: [recipe.name] };
+          }
+        });
+      });
+    });
+  });
+  return Object.values(ingMap);
+}
+
+/** Backwards-compatible alias used by profile page. */
+function ingredientsForWeek(wk) {
+  return ingredientsForPlannerWeek(wk);
+}
+
 function renderShopping() {
   const page = document.getElementById('page-shopping');
+  const shopDay = PrefsDB.get('shoppingDay') || 0;
+  const shopDayName = DAYS[shopDay];
   const tabs = `
     <div class="shop-tabs">
       <button class="shop-tab${shoppingView === 'current' ? ' active' : ''}" data-view="current">${icon('calendar-days', 16)} This Week</button>
@@ -480,32 +522,105 @@ function renderShopping() {
   refreshIcons();
 }
 
+function buildShoppingListText(weekOffset) {
+  const d = new Date();
+  d.setDate(d.getDate() + weekOffset * 7);
+  const swk = shopWeekKey(d);
+  const label = formatShopWeekRange(swk);
+  const items = ingredientsForShopWeek(swk);
+  const checkedKey = `shop_checked_${swk}`;
+  const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
+  const customItems = CustomItemsDB.all();
+  const recurringItems = RecurringDB.all();
+
+  let lines = [];
+  lines.push(`Shopping List - ${label}`);
+  lines.push('');
+
+  // Recipe items
+  const uncheckedRecipe = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+  if (uncheckedRecipe.length > 0) {
+    lines.push('From Recipes:');
+    uncheckedRecipe.forEach(i => {
+      const qty = [i.qty, i.unit].filter(Boolean).join(' ');
+      lines.push(`  [ ] ${i.name}${qty ? ' - ' + qty : ''} (${i.sources.join(', ')})`);
+    });
+    lines.push('');
+  }
+
+  // Recurring items
+  const recurringCheckedKey = `shop_recurring_checked_${swk}`;
+  const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
+  const uncheckedRecurring = recurringItems.filter(i => !recurringCheckedSet.has(i.id));
+  if (uncheckedRecurring.length > 0) {
+    lines.push('Weekly Recurring:');
+    uncheckedRecurring.forEach(i => {
+      const qty = [i.qty, i.unit].filter(Boolean).join(' ');
+      lines.push(`  [ ] ${i.name}${qty ? ' - ' + qty : ''}`);
+    });
+    lines.push('');
+  }
+
+  // Custom items
+  const uncheckedCustom = customItems.filter(i => !i.checked);
+  if (uncheckedCustom.length > 0) {
+    lines.push('Other Items:');
+    uncheckedCustom.forEach(i => {
+      const qty = [i.qty, i.unit].filter(Boolean).join(' ');
+      lines.push(`  [ ] ${i.name}${qty ? ' - ' + qty : ''}`);
+    });
+    lines.push('');
+  }
+
+  if (uncheckedRecipe.length === 0 && uncheckedRecurring.length === 0 && uncheckedCustom.length === 0) {
+    lines.push('All items checked off!');
+  }
+
+  return lines.join('\n');
+}
+
 function renderShoppingWeek(page, tabs, weekOffset) {
   const d = new Date();
   d.setDate(d.getDate() + weekOffset * 7);
-  const wk    = weekKey(d);
-  const label = formatWeekRange(wk);
-  const items = ingredientsForWeek(wk);
+  const swk   = shopWeekKey(d);
+  const label = formatShopWeekRange(swk);
+  const items = ingredientsForShopWeek(swk);
 
-  // Load checked state from ShoppingDB (keyed by week)
-  const checkedKey = `shop_checked_${wk}`;
+  // Load checked state (keyed by shop week)
+  const checkedKey = `shop_checked_${swk}`;
   const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
 
-  let body;
-  if (items.length === 0) {
-    body = `<div class="empty-state">
-      <div class="empty-icon">${icon('shopping-cart', 48)}</div>
-      <p>No meals planned${weekOffset === 0 ? ' this' : ' next'} week.<br>Go to the Planner to add some!</p>
+  // Recurring items checked state (per shop week)
+  const recurringCheckedKey = `shop_recurring_checked_${swk}`;
+  const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
+
+  // --- Add item form ---
+  const addForm = `
+    <div class="card shop-add-form">
+      <div class="shop-add-row">
+        <input type="text" id="shop-add-name" placeholder="Add an item…" class="shop-add-input" aria-label="Item name">
+        <input type="text" id="shop-add-qty" placeholder="Qty" class="shop-add-qty" aria-label="Quantity">
+        <input type="text" id="shop-add-unit" placeholder="Unit" class="shop-add-unit" aria-label="Unit">
+        <button class="btn-icon shop-add-btn" id="shop-add-btn" aria-label="Add item">${icon('plus', 18)}</button>
+      </div>
+      <div class="shop-add-options">
+        <label class="shop-recurring-toggle">
+          <input type="checkbox" id="shop-add-recurring"> ${icon('repeat', 14)} Recurring (every week)
+        </label>
+      </div>
     </div>`;
-  } else {
+
+  // --- Recipe-based items ---
+  let recipeSection = '';
+  if (items.length > 0) {
     const unchecked = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
     const checked   = items.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
 
-    function itemHtml(i) {
+    function recipeItemHtml(i) {
       const key = i.name.toLowerCase() + '\u0000' + i.unit;
       const isChecked = checkedSet.has(key);
       const safeKey = btoa(encodeURIComponent(key));
-      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-key="${safeKey}">
+      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-key="${safeKey}" data-type="recipe">
         <input type="checkbox" id="chk-${safeKey}" ${isChecked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
         <label for="chk-${safeKey}">
           ${escHtml(i.name)}
@@ -515,19 +630,115 @@ function renderShoppingWeek(page, tabs, weekOffset) {
       </div>`;
     }
 
-    const weekLabel = `<div class="shop-week-label">${icon('calendar-days', 14)} ${escHtml(label)}</div>`;
-    body = weekLabel + `
-      <div class="card" id="shop-list">
-        ${unchecked.map(itemHtml).join('')}
+    recipeSection = `
+      <div class="shop-section-title">${icon('utensils', 14)} From Recipes</div>
+      <div class="card" id="shop-list-recipe">
+        ${unchecked.map(recipeItemHtml).join('')}
         ${checked.length && unchecked.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
-        ${checked.map(itemHtml).join('')}
+        ${checked.map(recipeItemHtml).join('')}
       </div>`;
   }
 
-  page.innerHTML = tabs + body;
+  // --- Recurring items ---
+  const recurringItems = RecurringDB.all();
+  let recurringSection = '';
+  if (recurringItems.length > 0) {
+    const uncheckedR = recurringItems.filter(i => !recurringCheckedSet.has(i.id));
+    const checkedR   = recurringItems.filter(i =>  recurringCheckedSet.has(i.id));
 
-  // Toggle checked state
-  page.querySelectorAll('.shop-item input[type=checkbox]').forEach(chk => {
+    function recurringItemHtml(i) {
+      const isChecked = recurringCheckedSet.has(i.id);
+      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-id="${i.id}" data-type="recurring">
+        <input type="checkbox" id="chk-rec-${i.id}" ${isChecked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
+        <label for="chk-rec-${i.id}">
+          ${escHtml(i.name)}
+          <span class="shop-source">${icon('repeat', 10)} Every week</span>
+        </label>
+        <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
+        <button class="shop-remove" data-id="${i.id}" data-type="recurring" aria-label="Remove ${escHtml(i.name)}">${icon('x', 14)}</button>
+      </div>`;
+    }
+
+    recurringSection = `
+      <div class="shop-section-title">${icon('repeat', 14)} Weekly Recurring</div>
+      <div class="card" id="shop-list-recurring">
+        ${uncheckedR.map(recurringItemHtml).join('')}
+        ${checkedR.length && uncheckedR.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
+        ${checkedR.map(recurringItemHtml).join('')}
+      </div>`;
+  }
+
+  // --- Custom (manual) items ---
+  const customItems = CustomItemsDB.all();
+  let customSection = '';
+  if (customItems.length > 0) {
+    const uncheckedC = customItems.filter(i => !i.checked);
+    const checkedC   = customItems.filter(i =>  i.checked);
+
+    function customItemHtml(i) {
+      return `<div class="shop-item${i.checked ? ' checked' : ''}" data-id="${i.id}" data-type="custom">
+        <input type="checkbox" id="chk-cust-${i.id}" ${i.checked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
+        <label for="chk-cust-${i.id}">
+          ${escHtml(i.name)}
+        </label>
+        <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
+        <button class="shop-remove" data-id="${i.id}" data-type="custom" aria-label="Remove ${escHtml(i.name)}">${icon('x', 14)}</button>
+      </div>`;
+    }
+
+    customSection = `
+      <div class="shop-section-title">${icon('list-plus', 14)} Other Items</div>
+      <div class="card" id="shop-list-custom">
+        ${uncheckedC.map(customItemHtml).join('')}
+        ${checkedC.length && uncheckedC.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
+        ${checkedC.map(customItemHtml).join('')}
+      </div>`;
+  }
+
+  // --- Empty state ---
+  const totalItems = items.length + recurringItems.length + customItems.length;
+  const emptyState = totalItems === 0 ? `<div class="empty-state">
+    <div class="empty-icon">${icon('shopping-cart', 48)}</div>
+    <p>Your shopping list is empty.<br>Add items above or plan meals in the Planner!</p>
+  </div>` : '';
+
+  // --- Share / Export buttons ---
+  const shareButtons = totalItems > 0 ? `
+    <div class="shop-share-row">
+      <button class="btn btn-outline shop-share-btn" id="shop-copy-btn">${icon('clipboard-copy', 16)} Copy List</button>
+      <button class="btn btn-outline shop-share-btn" id="shop-share-btn">${icon('share-2', 16)} Share</button>
+    </div>` : '';
+
+  const weekLabel = `<div class="shop-week-label">${icon('calendar-days', 14)} ${escHtml(label)}</div>`;
+
+  page.innerHTML = tabs + addForm + weekLabel + recipeSection + recurringSection + customSection + emptyState + shareButtons;
+
+  // --- Wire add form ---
+  const addBtn = document.getElementById('shop-add-btn');
+  const addName = document.getElementById('shop-add-name');
+  const addQty = document.getElementById('shop-add-qty');
+  const addUnit = document.getElementById('shop-add-unit');
+  const addRecurring = document.getElementById('shop-add-recurring');
+
+  function doAdd() {
+    const name = addName.value.trim();
+    if (!name) return;
+    if (addRecurring.checked) {
+      RecurringDB.add(name, addQty.value.trim(), addUnit.value.trim());
+      showToast('Recurring item added');
+    } else {
+      CustomItemsDB.add(name, addQty.value.trim(), addUnit.value.trim());
+      showToast('Item added');
+    }
+    renderShopping();
+    updateShoppingBadge();
+  }
+
+  addBtn.addEventListener('click', doAdd);
+  addName.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
+
+  // --- Wire recipe item checkboxes ---
+  page.querySelectorAll('.shop-item[data-type="recipe"] input[type=checkbox]').forEach(chk => {
     chk.addEventListener('change', () => {
       const safeKey = chk.closest('.shop-item').dataset.key;
       const key = decodeURIComponent(atob(safeKey));
@@ -537,6 +748,84 @@ function renderShoppingWeek(page, tabs, weekOffset) {
       renderShopping();
     });
   });
+
+  // --- Wire recurring item checkboxes ---
+  page.querySelectorAll('.shop-item[data-type="recurring"] input[type=checkbox]').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const id = chk.closest('.shop-item').dataset.id;
+      if (chk.checked) recurringCheckedSet.add(id);
+      else recurringCheckedSet.delete(id);
+      localStorage.setItem(recurringCheckedKey, JSON.stringify([...recurringCheckedSet]));
+      renderShopping();
+    });
+  });
+
+  // --- Wire custom item checkboxes ---
+  page.querySelectorAll('.shop-item[data-type="custom"] input[type=checkbox]').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const id = chk.closest('.shop-item').dataset.id;
+      CustomItemsDB.toggle(id);
+      renderShopping();
+    });
+  });
+
+  // --- Wire remove buttons ---
+  page.querySelectorAll('.shop-remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const type = btn.dataset.type;
+      if (type === 'recurring') {
+        RecurringDB.remove(id);
+        showToast('Recurring item removed');
+      } else if (type === 'custom') {
+        CustomItemsDB.remove(id);
+        showToast('Item removed');
+      }
+      renderShopping();
+      updateShoppingBadge();
+    });
+  });
+
+  // --- Wire share / copy buttons ---
+  const copyBtn = document.getElementById('shop-copy-btn');
+  const shareBtn = document.getElementById('shop-share-btn');
+
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const text = buildShoppingListText(weekOffset);
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('List copied to clipboard');
+      }).catch(() => {
+        // Fallback for older browsers
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('List copied to clipboard');
+      });
+    });
+  }
+
+  if (shareBtn) {
+    shareBtn.addEventListener('click', () => {
+      const text = buildShoppingListText(weekOffset);
+      if (navigator.share) {
+        navigator.share({ title: 'Shopping List', text: text }).catch(() => {});
+      } else {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(text).then(() => {
+          showToast('List copied (share not supported on this device)');
+        }).catch(() => {
+          showToast('Could not share');
+        });
+      }
+    });
+  }
 }
 
 /* ── Planner page ────────────────────────────────────────── */
@@ -555,7 +844,7 @@ function renderPlanner() {
   const selPlan = plan[selDay] || { breakfast: [], lunch: [], dinner: [] };
 
   const todayBtn = plannerWeekOffset !== 0
-    ? `<button class="cal-today-btn" id="planner-today">Today</button>`
+    ? `<button class="cal-today-btn" id="planner-today">${icon('arrow-left', 14)} Back to Today</button>`
     : '';
 
   /* ── Horizontal day strip ──── */
@@ -563,11 +852,21 @@ function renderPlanner() {
     const d       = dates[i];
     const isToday = d.getTime() === nowDate.getTime();
     const isSel   = i === selIdx;
+    // Check if this day has any meals planned
+    const dayPlan = plan[day] || { breakfast: [], lunch: [], dinner: [] };
+    const hasMeals = MEALS.some(m => (dayPlan[m] || []).length > 0);
+    // Show meal dot if day has meals, otherwise show today dot if applicable
+    let dotHtml = '';
+    if (hasMeals) {
+      dotHtml = '<span class="cal-strip-meals" aria-hidden="true"></span>';
+    } else if (isToday && !isSel) {
+      dotHtml = '<span class="cal-strip-dot" aria-hidden="true"></span>';
+    }
     return `<button class="cal-strip-day${isSel ? ' selected' : ''}${isToday ? ' today' : ''}"
               data-idx="${i}" aria-label="${day} ${d.getDate()}" aria-pressed="${isSel}">
       <span class="cal-strip-name">${DAYS_SHORT[i]}</span>
       <span class="cal-strip-num">${d.getDate()}</span>
-      ${isToday && !isSel ? '<span class="cal-strip-dot" aria-hidden="true"></span>' : ''}
+      ${dotHtml}
     </button>`;
   }).join('');
 
@@ -793,6 +1092,27 @@ function renderProfile() {
             ).join('')}
           </select>
         </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Shopping Day</span>
+            <span class="setting-label-desc">Which day your shopping week starts</span>
+          </div>
+          <select class="setting-select" id="pref-shopping-day">
+            ${DAYS.map((day, i) =>
+              `<option value="${i}" ${prefs.shoppingDay === i ? 'selected' : ''}>${day}</option>`
+            ).join('')}
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Shopping Reminder</span>
+            <span class="setting-label-desc">Get notified on shopping day</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="pref-shopping-reminder" ${prefs.shoppingReminder ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
           <div class="setting-label">
             <span class="setting-label-text">Accent Color</span>
@@ -853,6 +1173,37 @@ function renderProfile() {
     showToast('Default servings updated');
   });
 
+  // Shopping day
+  document.getElementById('pref-shopping-day').addEventListener('change', e => {
+    PrefsDB.set('shoppingDay', parseInt(e.target.value, 10));
+    updateShoppingBadge();
+    scheduleShoppingReminder();
+    showToast('Shopping day updated');
+  });
+
+  // Shopping reminder toggle
+  document.getElementById('pref-shopping-reminder').addEventListener('change', async e => {
+    if (e.target.checked) {
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        e.target.checked = false;
+        showToast('Notification permission denied');
+        return;
+      }
+      PrefsDB.set('shoppingReminder', true);
+      scheduleShoppingReminder();
+      showToast('Shopping reminder enabled');
+    } else {
+      PrefsDB.set('shoppingReminder', false);
+      // Cancel any scheduled Capacitor notification
+      const capLN = getCapLocalNotifications();
+      if (capLN) {
+        try { await capLN.cancel({ notifications: [{ id: 7777 }] }); } catch (e) {}
+      }
+      showToast('Shopping reminder disabled');
+    }
+  });
+
   // Reset prefs
   document.getElementById('btn-reset-prefs').addEventListener('click', () => {
     if (!confirm('Reset all preferences to defaults?')) return;
@@ -865,11 +1216,21 @@ function renderProfile() {
 
 /* ── Badge ───────────────────────────────────────────────── */
 function updateShoppingBadge() {
-  const wk = weekKey(new Date());
-  const items = ingredientsForWeek(wk);
-  const checkedKey = `shop_checked_${wk}`;
+  const swk = shopWeekKey(new Date());
+  const items = ingredientsForShopWeek(swk);
+  const checkedKey = `shop_checked_${swk}`;
   const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
-  const n = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit)).length;
+  const recipeCount = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit)).length;
+
+  // Recurring items unchecked count
+  const recurringCheckedKey = `shop_recurring_checked_${swk}`;
+  const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
+  const recurringCount = RecurringDB.all().filter(i => !recurringCheckedSet.has(i.id)).length;
+
+  // Custom items unchecked count
+  const customCount = CustomItemsDB.count();
+
+  const n = recipeCount + recurringCount + customCount;
   let badge = document.getElementById('shop-badge');
   if (!badge) {
     const btn = document.querySelector('.nav-btn[data-page="shopping"]');
@@ -899,6 +1260,153 @@ function escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/* ── Shopping day notification ───────────────────────────── */
+
+/** Get the Capacitor LocalNotifications plugin if available. */
+function getCapLocalNotifications() {
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+      return window.Capacitor.Plugins.LocalNotifications;
+    }
+  } catch (e) { /* not available */ }
+  return null;
+}
+
+/** Request notification permission (Capacitor or Web). */
+async function requestNotificationPermission() {
+  const capLN = getCapLocalNotifications();
+  if (capLN) {
+    const result = await capLN.requestPermissions();
+    return result.display === 'granted';
+  }
+  if ('Notification' in window) {
+    const result = await Notification.requestPermission();
+    return result === 'granted';
+  }
+  return false;
+}
+
+/** Check current notification permission. */
+async function hasNotificationPermission() {
+  const capLN = getCapLocalNotifications();
+  if (capLN) {
+    const result = await capLN.checkPermissions();
+    return result.display === 'granted';
+  }
+  if ('Notification' in window) {
+    return Notification.permission === 'granted';
+  }
+  return false;
+}
+
+/** Build the shopping summary text for the notification body. */
+function buildReminderBody() {
+  const now = new Date();
+  const swk = shopWeekKey(now);
+  const recipeItems = ingredientsForShopWeek(swk);
+  const checkedKey = `shop_checked_${swk}`;
+  const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
+  const uncheckedRecipe = recipeItems.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit)).length;
+  const recurringCheckedKey = `shop_recurring_checked_${swk}`;
+  const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
+  const uncheckedRecurring = RecurringDB.all().filter(i => !recurringCheckedSet.has(i.id)).length;
+  const uncheckedCustom = CustomItemsDB.count();
+  const total = uncheckedRecipe + uncheckedRecurring + uncheckedCustom;
+  return total > 0
+    ? `You have ${total} item${total !== 1 ? 's' : ''} on your shopping list.`
+    : 'Your shopping list is empty — plan some meals!';
+}
+
+/**
+ * Schedule a Capacitor local notification for next shopping day at 9:00 AM.
+ * Cancels any previous shopping reminder first.
+ */
+async function scheduleCapacitorReminder() {
+  const capLN = getCapLocalNotifications();
+  if (!capLN) return;
+  const prefs = PrefsDB.all();
+
+  // Cancel existing shopping reminder
+  try {
+    await capLN.cancel({ notifications: [{ id: 7777 }] });
+  } catch (e) { /* ignore if none scheduled */ }
+
+  if (!prefs.shoppingReminder) return;
+
+  // Calculate next shopping day at 9 AM
+  const now = new Date();
+  const dow = now.getDay();
+  const ourIdx = dow === 0 ? 6 : dow - 1;
+  const targetIdx = prefs.shoppingDay || 0;
+  let daysUntil = targetIdx - ourIdx;
+  if (daysUntil < 0) daysUntil += 7;
+  if (daysUntil === 0) {
+    // If today is shopping day but past 9 AM, schedule for next week
+    if (now.getHours() >= 9) daysUntil = 7;
+  }
+
+  const schedDate = new Date(now);
+  schedDate.setDate(schedDate.getDate() + daysUntil);
+  schedDate.setHours(9, 0, 0, 0);
+
+  await capLN.schedule({
+    notifications: [{
+      id: 7777,
+      title: 'Shopping Day!',
+      body: buildReminderBody(),
+      schedule: {
+        at: schedDate,
+        every: 'week',
+        allowWhileIdle: true
+      },
+      smallIcon: 'ic_stat_shopping_cart',
+      largeIcon: 'ic_launcher',
+      autoCancel: true
+    }]
+  });
+}
+
+/**
+ * Web fallback: check on each app open if today is shopping day.
+ * Shows a web notification once per day.
+ */
+function checkWebShoppingReminder() {
+  const prefs = PrefsDB.all();
+  if (!prefs.shoppingReminder) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const now = new Date();
+  const dow = now.getDay();
+  const ourIdx = dow === 0 ? 6 : dow - 1;
+  if (ourIdx !== (prefs.shoppingDay || 0)) return;
+
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  if (localStorage.getItem('gr_last_shop_notify') === todayStr) return;
+
+  localStorage.setItem('gr_last_shop_notify', todayStr);
+  const body = buildReminderBody();
+
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.ready.then(reg => {
+      reg.showNotification('Shopping Day!', {
+        body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'shopping-reminder'
+      });
+    });
+  } else {
+    new Notification('Shopping Day!', { body, icon: 'icons/icon-192.png', tag: 'shopping-reminder' });
+  }
+}
+
+/** Entry point: schedule Capacitor notification or set up web check. */
+function scheduleShoppingReminder() {
+  const capLN = getCapLocalNotifications();
+  if (capLN) {
+    scheduleCapacitorReminder();
+  } else {
+    checkWebShoppingReminder();
+  }
 }
 
 /* ── Boot ────────────────────────────────────────────────── */
@@ -944,5 +1452,15 @@ document.addEventListener('DOMContentLoaded', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
-  navigate('recipes');
+  // Default to planner if today has meals planned, otherwise recipes
+  const todayWk = weekKey(new Date());
+  const todayPlan = PlanDB.allForWeek(todayWk);
+  const nowDow = new Date().getDay();
+  const todayDayName = DAYS[nowDow === 0 ? 6 : nowDow - 1];
+  const todayDayPlan = todayPlan[todayDayName] || {};
+  const todayHasMeals = MEALS.some(m => (todayDayPlan[m] || []).length > 0);
+  navigate(todayHasMeals ? 'planner' : 'recipes');
+
+  // Start shopping day reminder checks
+  scheduleShoppingReminder();
 });
