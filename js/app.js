@@ -432,10 +432,10 @@ function renderShoppingNextWeek(page, tabs) {
   const meals = [];
   DAYS.forEach((day, idx) => {
     MEALS.forEach(meal => {
-      const rid = plan[day]?.[meal];
-      if (rid) {
-        const recipe = RecipeDB.get(rid);
-        if (recipe) meals.push({ recipe, day, meal, date: dates[idx] });
+      const slot = PlanDB.getSlot(plan, day, meal);
+      if (slot) {
+        const recipe = RecipeDB.get(slot.recipeId);
+        if (recipe) meals.push({ recipe, day, meal, date: dates[idx], servings: slot.servings });
       }
     });
   });
@@ -447,17 +447,19 @@ function renderShoppingNextWeek(page, tabs) {
       <p>No meals planned for next week.<br>Go to the Planner to schedule some!</p>
     </div>`;
   } else {
-    // Merge ingredients across all planned recipes
+    // Merge ingredients across all planned recipes (scaled by servings)
     const ingMap = {};
-    meals.forEach(({ recipe }) => {
+    meals.forEach(({ recipe, servings }) => {
+      const mult = servings / recipe.servings;
       recipe.ingredients.forEach(ing => {
         const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
+        const scaledQty = isNaN(parseFloat(ing.qty)) ? ing.qty : String(Math.round(parseFloat(ing.qty) * mult * 100) / 100);
         if (ingMap[k]) {
-          const prev = parseFloat(ingMap[k].qty), add = parseFloat(ing.qty);
+          const prev = parseFloat(ingMap[k].qty), add = parseFloat(scaledQty);
           if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
           if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
         } else {
-          ingMap[k] = { name: ing.name, qty: ing.qty, unit: ing.unit, sources: [recipe.name] };
+          ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, sources: [recipe.name] };
         }
       });
     });
@@ -486,7 +488,7 @@ function renderShoppingNextWeek(page, tabs) {
   const btnANW = document.getElementById('btn-add-next-week');
   if (btnANW) {
     btnANW.addEventListener('click', () => {
-      meals.forEach(({ recipe }) => ShoppingDB.addFromRecipe(recipe, 1));
+      meals.forEach(({ recipe, servings }) => ShoppingDB.addFromRecipe(recipe, servings / recipe.servings));
       updateShoppingBadge();
       shoppingView = 'current';
       renderShopping();
@@ -529,16 +531,25 @@ function renderPlanner() {
 
   /* ── 3 meal cards for selected day ──── */
   const mealCardsHtml = MEALS.map(meal => {
-    const rid    = selPlan[meal];
-    const recipe = rid ? RecipeDB.get(rid) : null;
+    const slot   = PlanDB.getSlot(selPlan, selDay, meal);
+    const recipe = slot ? RecipeDB.get(slot.recipeId) : null;
+    const mealServings = slot ? slot.servings : 0;
     const body   = recipe
       ? `<div class="cal-card-recipe">
            <span class="cal-card-emoji">${recipe.emoji || '🍽'}</span>
            <div class="cal-card-info">
              <span class="cal-card-name">${escHtml(recipe.name)}</span>
-             <span class="cal-card-meta">${recipe.ingredients.length} ingredients · serves ${recipe.servings}</span>
+             <span class="cal-card-meta">${recipe.ingredients.length} ingredients</span>
            </div>
            <span class="cal-card-arrow">›</span>
+         </div>
+         <div class="cal-servings-row">
+           <label>Serves:</label>
+           <div class="cal-servings-ctrl">
+             <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-dir="-1" aria-label="Decrease servings">−</button>
+             <span class="cal-srv-val">${mealServings}</span>
+             <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-dir="1" aria-label="Increase servings">+</button>
+           </div>
          </div>`
       : `<div class="cal-card-add">
            <span class="cal-card-add-icon">+</span>
@@ -635,13 +646,35 @@ function renderPlanner() {
     });
   });
 
+  /* ── Servings +/- buttons ──── */
+  page.querySelectorAll('.cal-srv-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const { wk: slotWk, day: slotDay, meal: slotMeal, dir } = btn.dataset;
+      const curPlan = PlanDB.allForWeek(slotWk);
+      const slot = PlanDB.getSlot(curPlan, slotDay, slotMeal);
+      if (!slot) return;
+      const newServings = slot.servings + parseInt(dir, 10);
+      if (newServings < 1) return;
+      PlanDB.setServings(slotWk, slotDay, slotMeal, newServings);
+      renderPlanner();
+    });
+  });
+
   /* ── Add week to shopping ──── */
   document.getElementById('btn-plan-to-shop').addEventListener('click', () => {
     let count = 0;
     DAYS.forEach(day => {
       MEALS.forEach(meal => {
-        const rid = plan[day]?.[meal];
-        if (rid) { const r = RecipeDB.get(rid); if (r) { ShoppingDB.addFromRecipe(r, 1); count++; } }
+        const slot = PlanDB.getSlot(plan, day, meal);
+        if (slot) {
+          const r = RecipeDB.get(slot.recipeId);
+          if (r) {
+            const mult = slot.servings / r.servings;
+            ShoppingDB.addFromRecipe(r, mult);
+            count++;
+          }
+        }
       });
     });
     updateShoppingBadge();

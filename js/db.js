@@ -5,6 +5,7 @@
  *   Recipe  { id, name, emoji, servings, ingredients:[{name,qty,unit}], steps:[string], createdAt }
  *   ShopItem{ id, name, qty, unit, checked, source, recipeId }
  *   Plan    { [weekKey]: { [day]: { breakfast, lunch, dinner } } }
+ *             each meal slot = { recipeId, servings } | null
  *             weekKey = 'YYYY-MM-DD' of that week's Monday
  */
 
@@ -168,12 +169,45 @@ const PlanDB = {
     return this._raw()[wk] || this._emptyWeek();
   },
 
-  /** Set a single meal slot. */
+  /**
+   * Read a meal slot, normalising legacy string values to { recipeId, servings }.
+   * Returns { recipeId, servings } or null.
+   */
+  getSlot(plan, day, meal) {
+    const v = plan[day]?.[meal];
+    if (!v) return null;
+    if (typeof v === 'string') {
+      const recipe = RecipeDB.get(v);
+      return { recipeId: v, servings: recipe ? recipe.servings : 1 };
+    }
+    return v;
+  },
+
+  /** Set a single meal slot (stores { recipeId, servings }). */
   set(wk, day, meal, recipeId) {
     const raw = this._raw();
     if (!raw[wk])      raw[wk]      = this._emptyWeek();
     if (!raw[wk][day]) raw[wk][day] = { breakfast: null, lunch: null, dinner: null };
-    raw[wk][day][meal] = recipeId || null;
+    if (recipeId) {
+      const recipe = RecipeDB.get(recipeId);
+      raw[wk][day][meal] = { recipeId, servings: recipe ? recipe.servings : 1 };
+    } else {
+      raw[wk][day][meal] = null;
+    }
+    save(DB_PLAN, raw);
+  },
+
+  /** Update just the servings for an existing meal slot. */
+  setServings(wk, day, meal, servings) {
+    const raw = this._raw();
+    const slot = raw[wk]?.[day]?.[meal];
+    if (!slot) return;
+    // Handle legacy string format
+    if (typeof slot === 'string') {
+      raw[wk][day][meal] = { recipeId: slot, servings };
+    } else {
+      slot.servings = servings;
+    }
     save(DB_PLAN, raw);
   },
 
