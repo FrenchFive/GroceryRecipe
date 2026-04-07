@@ -1,6 +1,6 @@
 {
   "name": "groceryrecipe",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Plan your meals, build your shopping list",
   "scripts": {
     "build": "bash build.sh",
