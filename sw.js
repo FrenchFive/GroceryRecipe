@@ -1,10 +1,11 @@
 const CACHE_NAME = 'grocery-recipe-v1';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/css/style.css',
-  '/js/db.js',
-  '/js/app.js'
+  './',
+  './index.html',
+  './css/style.css',
+  './js/db.js',
+  './js/app.js',
+  './manifest.json'
 ];
 
 self.addEventListener('install', (e) => {
@@ -25,6 +26,13 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request))
+    caches.match(e.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(e.request).catch(() => {
+        // Only fall back to index.html for navigation requests (HTML pages)
+        if (e.request.mode === 'navigate') return caches.match('./index.html');
+        return new Response('', { status: 408, statusText: 'Offline' });
+      });
+    })
   );
 });

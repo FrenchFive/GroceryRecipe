@@ -4,9 +4,12 @@
   "description": "Plan your meals, build your shopping list",
   "scripts": {
     "build": "bash build.sh",
+    "build:win": "build.bat",
     "build:apk": "bash build.sh --apk",
+    "build:apk:win": "build.bat --apk",
     "cap:sync": "cap sync android",
-    "dev": "bash dev.sh"
+    "dev": "bash dev.sh",
+    "dev:win": "dev.bat"
   },
   "repository": {
     "type": "git",
