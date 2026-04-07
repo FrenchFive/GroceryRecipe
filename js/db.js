@@ -48,6 +48,50 @@ function getWeekDates(wk) {
   });
 }
 
+/**
+ * Return the start-of-week Date for shopping, based on user's preferred shopping day.
+ * shoppingDay: 0=Monday … 6=Sunday (same indexing as DAYS array).
+ */
+function getShopWeekStart(date, shoppingDay) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  // Convert JS getDay() (0=Sun) to our index (0=Mon … 6=Sun)
+  const dow = d.getDay();
+  const ourIdx = dow === 0 ? 6 : dow - 1; // 0=Mon … 6=Sun
+  let diff = ourIdx - shoppingDay;
+  if (diff < 0) diff += 7;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+/** Week key for shopping (start date based on shopping day pref). */
+function shopWeekKey(date) {
+  const sd = PrefsDB.get('shoppingDay') || 0;
+  const start = getShopWeekStart(date, sd);
+  return `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+}
+
+/** Array of 7 Date objects for the shop week identified by `swk`. */
+function getShopWeekDates(swk) {
+  const [y, mo, dy] = swk.split('-').map(Number);
+  const start = new Date(y, mo - 1, dy);
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(start);
+    x.setDate(start.getDate() + i);
+    return x;
+  });
+}
+
+/** Human-readable range for a shop week key. */
+function formatShopWeekRange(swk) {
+  const dates = getShopWeekDates(swk);
+  const s = dates[0], e = dates[6];
+  const sm = MONTHS_SHORT[s.getMonth()], em = MONTHS_SHORT[e.getMonth()];
+  return s.getMonth() === e.getMonth()
+    ? `${sm} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}`
+    : `${sm} ${s.getDate()} – ${em} ${e.getDate()}, ${e.getFullYear()}`;
+}
+
 /** Human-readable range like "Jun 9 – 15, 2026" or "Jun 30 – Jul 6, 2026". */
 function formatWeekRange(wk) {
   const dates = getWeekDates(wk);
@@ -302,7 +346,8 @@ const ACCENT_COLORS = {
 /* ── User preferences ───────────────────────────────────── */
 const PREF_DEFAULTS = {
   defaultServings: 2,
-  accentColor: 'blue'
+  accentColor: 'blue',
+  shoppingDay: 0           // 0=Monday … 6=Sunday (which day the shopping week starts)
 };
 
 const PrefsDB = {

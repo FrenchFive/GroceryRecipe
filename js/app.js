@@ -434,8 +434,8 @@ function renderAddForm(editId) {
 
 /* ── Shopping page ───────────────────────────────────────── */
 
-/** Compute merged ingredient list from a week's plan. */
-function ingredientsForWeek(wk) {
+/** Compute merged ingredient list from a planner week (Mon-Sun). */
+function ingredientsForPlannerWeek(wk) {
   const plan = PlanDB.allForWeek(wk);
   const ingMap = {};
   DAYS.forEach(day => {
@@ -460,8 +460,50 @@ function ingredientsForWeek(wk) {
   return Object.values(ingMap);
 }
 
+/**
+ * Compute merged ingredient list for a shopping week (shopWeekKey).
+ * The shopping week may span two planner weeks if shopping day != Monday.
+ */
+function ingredientsForShopWeek(swk) {
+  const dates = getShopWeekDates(swk);
+  const ingMap = {};
+  dates.forEach(date => {
+    const planWk = weekKey(date);
+    const plan = PlanDB.allForWeek(planWk);
+    // Which day name is this date?
+    const dow = date.getDay();
+    const dayIdx = dow === 0 ? 6 : dow - 1;
+    const dayName = DAYS[dayIdx];
+    MEALS.forEach(meal => {
+      const rids = plan[dayName]?.[meal] || [];
+      rids.forEach(rid => {
+        const recipe = RecipeDB.get(rid);
+        if (!recipe) return;
+        recipe.ingredients.forEach(ing => {
+          const k = `${ing.name.toLowerCase()}\u0000${ing.unit}`;
+          if (ingMap[k]) {
+            const prev = parseFloat(ingMap[k].qty), add = parseFloat(ing.qty);
+            if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
+            if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
+          } else {
+            ingMap[k] = { name: ing.name, qty: ing.qty, unit: ing.unit, sources: [recipe.name] };
+          }
+        });
+      });
+    });
+  });
+  return Object.values(ingMap);
+}
+
+/** Backwards-compatible alias used by profile page. */
+function ingredientsForWeek(wk) {
+  return ingredientsForPlannerWeek(wk);
+}
+
 function renderShopping() {
   const page = document.getElementById('page-shopping');
+  const shopDay = PrefsDB.get('shoppingDay') || 0;
+  const shopDayName = DAYS[shopDay];
   const tabs = `
     <div class="shop-tabs">
       <button class="shop-tab${shoppingView === 'current' ? ' active' : ''}" data-view="current">${icon('calendar-days', 16)} This Week</button>
@@ -483,10 +525,10 @@ function renderShopping() {
 function buildShoppingListText(weekOffset) {
   const d = new Date();
   d.setDate(d.getDate() + weekOffset * 7);
-  const wk = weekKey(d);
-  const label = formatWeekRange(wk);
-  const items = ingredientsForWeek(wk);
-  const checkedKey = `shop_checked_${wk}`;
+  const swk = shopWeekKey(d);
+  const label = formatShopWeekRange(swk);
+  const items = ingredientsForShopWeek(swk);
+  const checkedKey = `shop_checked_${swk}`;
   const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
   const customItems = CustomItemsDB.all();
   const recurringItems = RecurringDB.all();
@@ -507,7 +549,7 @@ function buildShoppingListText(weekOffset) {
   }
 
   // Recurring items
-  const recurringCheckedKey = `shop_recurring_checked_${wk}`;
+  const recurringCheckedKey = `shop_recurring_checked_${swk}`;
   const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
   const uncheckedRecurring = recurringItems.filter(i => !recurringCheckedSet.has(i.id));
   if (uncheckedRecurring.length > 0) {
@@ -540,16 +582,16 @@ function buildShoppingListText(weekOffset) {
 function renderShoppingWeek(page, tabs, weekOffset) {
   const d = new Date();
   d.setDate(d.getDate() + weekOffset * 7);
-  const wk    = weekKey(d);
-  const label = formatWeekRange(wk);
-  const items = ingredientsForWeek(wk);
+  const swk   = shopWeekKey(d);
+  const label = formatShopWeekRange(swk);
+  const items = ingredientsForShopWeek(swk);
 
-  // Load checked state (keyed by week)
-  const checkedKey = `shop_checked_${wk}`;
+  // Load checked state (keyed by shop week)
+  const checkedKey = `shop_checked_${swk}`;
   const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
 
-  // Recurring items checked state (per week)
-  const recurringCheckedKey = `shop_recurring_checked_${wk}`;
+  // Recurring items checked state (per shop week)
+  const recurringCheckedKey = `shop_recurring_checked_${swk}`;
   const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
 
   // --- Add item form ---
@@ -810,11 +852,21 @@ function renderPlanner() {
     const d       = dates[i];
     const isToday = d.getTime() === nowDate.getTime();
     const isSel   = i === selIdx;
+    // Check if this day has any meals planned
+    const dayPlan = plan[day] || { breakfast: [], lunch: [], dinner: [] };
+    const hasMeals = MEALS.some(m => (dayPlan[m] || []).length > 0);
+    // Show meal dot if day has meals, otherwise show today dot if applicable
+    let dotHtml = '';
+    if (hasMeals) {
+      dotHtml = '<span class="cal-strip-meals" aria-hidden="true"></span>';
+    } else if (isToday && !isSel) {
+      dotHtml = '<span class="cal-strip-dot" aria-hidden="true"></span>';
+    }
     return `<button class="cal-strip-day${isSel ? ' selected' : ''}${isToday ? ' today' : ''}"
               data-idx="${i}" aria-label="${day} ${d.getDate()}" aria-pressed="${isSel}">
       <span class="cal-strip-name">${DAYS_SHORT[i]}</span>
       <span class="cal-strip-num">${d.getDate()}</span>
-      ${isToday && !isSel ? '<span class="cal-strip-dot" aria-hidden="true"></span>' : ''}
+      ${dotHtml}
     </button>`;
   }).join('');
 
@@ -1040,6 +1092,17 @@ function renderProfile() {
             ).join('')}
           </select>
         </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Shopping Day</span>
+            <span class="setting-label-desc">Which day your shopping week starts</span>
+          </div>
+          <select class="setting-select" id="pref-shopping-day">
+            ${DAYS.map((day, i) =>
+              `<option value="${i}" ${prefs.shoppingDay === i ? 'selected' : ''}>${day}</option>`
+            ).join('')}
+          </select>
+        </div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
           <div class="setting-label">
             <span class="setting-label-text">Accent Color</span>
@@ -1100,6 +1163,13 @@ function renderProfile() {
     showToast('Default servings updated');
   });
 
+  // Shopping day
+  document.getElementById('pref-shopping-day').addEventListener('change', e => {
+    PrefsDB.set('shoppingDay', parseInt(e.target.value, 10));
+    updateShoppingBadge();
+    showToast('Shopping day updated');
+  });
+
   // Reset prefs
   document.getElementById('btn-reset-prefs').addEventListener('click', () => {
     if (!confirm('Reset all preferences to defaults?')) return;
@@ -1112,14 +1182,14 @@ function renderProfile() {
 
 /* ── Badge ───────────────────────────────────────────────── */
 function updateShoppingBadge() {
-  const wk = weekKey(new Date());
-  const items = ingredientsForWeek(wk);
-  const checkedKey = `shop_checked_${wk}`;
+  const swk = shopWeekKey(new Date());
+  const items = ingredientsForShopWeek(swk);
+  const checkedKey = `shop_checked_${swk}`;
   const checkedSet = new Set(JSON.parse(localStorage.getItem(checkedKey) || '[]'));
   const recipeCount = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit)).length;
 
   // Recurring items unchecked count
-  const recurringCheckedKey = `shop_recurring_checked_${wk}`;
+  const recurringCheckedKey = `shop_recurring_checked_${swk}`;
   const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
   const recurringCount = RecurringDB.all().filter(i => !recurringCheckedSet.has(i.id)).length;
 

@@ -886,6 +886,19 @@ img.emoji.recipe-photo {
   color: var(--green);
   border: 2px solid var(--green);
 }
+.cal-strip-meals {
+  width: 6px;
+  height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.cal-strip-day.selected .cal-strip-meals {
+  background: #fff;
+}
 .cal-strip-dot {
   width: 6px;
   height: 6px;
