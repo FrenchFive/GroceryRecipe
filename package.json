@@ -1,6 +1,6 @@
 {
   "name": "groceryrecipe",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Plan your meals, build your shopping list",
   "scripts": {
     "build": "bash build.sh",
@@ -18,7 +18,15 @@
   "license": "ISC",
   "dependencies": {
     "@capacitor/android": "^8.3.0",
-    "@capacitor/core": "^8.3.0"
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/keyboard": "^8.0.2",
+    "@capacitor/local-notifications": "^8.0.2",
+    "@capacitor/share": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
+    "lucide": "^1.7.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.0"
