@@ -93,9 +93,9 @@ function getCapPlugin(name) {
   return null;
 }
 
-function hapticTap()    { const h = getCapPlugin('Haptics'); if (h) h.impact({ style: 'LIGHT' }); }
-function hapticAction() { const h = getCapPlugin('Haptics'); if (h) h.impact({ style: 'MEDIUM' }); }
-function hapticHeavy()  { const h = getCapPlugin('Haptics'); if (h) h.notification({ type: 'WARNING' }); }
+function hapticTap()    { if (!PrefsDB.get('hapticFeedback')) return; const h = getCapPlugin('Haptics'); if (h) h.impact({ style: 'LIGHT' }); }
+function hapticAction() { if (!PrefsDB.get('hapticFeedback')) return; const h = getCapPlugin('Haptics'); if (h) h.impact({ style: 'MEDIUM' }); }
+function hapticHeavy()  { if (!PrefsDB.get('hapticFeedback')) return; const h = getCapPlugin('Haptics'); if (h) h.notification({ type: 'WARNING' }); }
 
 /* ── Routing ─────────────────────────────────────────────── */
 function navigate(page) {
@@ -1737,22 +1737,14 @@ function renderProfile() {
             <span class="setting-label-text">Default Servings</span>
             <span class="setting-label-desc">Pre-fill when adding recipes</span>
           </div>
-          <select class="setting-select" id="pref-default-servings">
-            ${[1,2,3,4,5,6,8,10].map(n =>
-              `<option value="${n}" ${prefs.defaultServings === n ? 'selected' : ''}>${n}</option>`
-            ).join('')}
-          </select>
+          <button type="button" class="setting-select" id="pref-default-servings">${prefs.defaultServings}</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <span class="setting-label-text">Shopping Day</span>
             <span class="setting-label-desc">Which day your shopping week starts</span>
           </div>
-          <select class="setting-select" id="pref-shopping-day">
-            ${DAYS.map((day, i) =>
-              `<option value="${i}" ${prefs.shoppingDay === i ? 'selected' : ''}>${day}</option>`
-            ).join('')}
-          </select>
+          <button type="button" class="setting-select" id="pref-shopping-day">${DAYS[prefs.shoppingDay]}</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1761,6 +1753,16 @@ function renderProfile() {
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="pref-shopping-reminder" ${prefs.shoppingReminder ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span class="setting-label-text">Haptic Feedback</span>
+            <span class="setting-label-desc">Vibrate on taps and actions</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="pref-haptic-feedback" ${prefs.hapticFeedback ? 'checked' : ''}>
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -1819,17 +1821,25 @@ function renderProfile() {
   });
 
   // Default servings
-  document.getElementById('pref-default-servings').addEventListener('change', e => {
-    PrefsDB.set('defaultServings', parseInt(e.target.value, 10));
-    showToast('Default servings updated');
+  document.getElementById('pref-default-servings').addEventListener('click', () => {
+    const opts = [1,2,3,4,5,6,8,10].map(n => ({ value: String(n), label: String(n) }));
+    openOptionPicker('Default Servings', opts, String(PrefsDB.get('defaultServings')), val => {
+      PrefsDB.set('defaultServings', parseInt(val, 10));
+      document.getElementById('pref-default-servings').textContent = val;
+      showToast('Default servings updated');
+    });
   });
 
   // Shopping day
-  document.getElementById('pref-shopping-day').addEventListener('change', e => {
-    PrefsDB.set('shoppingDay', parseInt(e.target.value, 10));
-    updateShoppingBadge();
-    scheduleShoppingReminder();
-    showToast('Shopping day updated');
+  document.getElementById('pref-shopping-day').addEventListener('click', () => {
+    const opts = DAYS.map((day, i) => ({ value: String(i), label: day }));
+    openOptionPicker('Shopping Day', opts, String(PrefsDB.get('shoppingDay')), val => {
+      PrefsDB.set('shoppingDay', parseInt(val, 10));
+      document.getElementById('pref-shopping-day').textContent = DAYS[parseInt(val, 10)];
+      updateShoppingBadge();
+      scheduleShoppingReminder();
+      showToast('Shopping day updated');
+    });
   });
 
   // Shopping reminder toggle
@@ -1853,6 +1863,12 @@ function renderProfile() {
       }
       showToast('Shopping reminder disabled');
     }
+  });
+
+  // Haptic feedback toggle
+  document.getElementById('pref-haptic-feedback').addEventListener('change', e => {
+    PrefsDB.set('hapticFeedback', e.target.checked);
+    showToast(e.target.checked ? 'Haptic feedback enabled' : 'Haptic feedback disabled');
   });
 
   // Reset prefs

@@ -504,7 +504,7 @@ const PlanDB = {
     return week;
   },
 
-  /** Add a recipe to a meal slot with its default servings. */
+  /** Add a recipe to a meal slot with the user's default servings. */
   add(wk, day, meal, recipeId) {
     if (!recipeId) return;
     const raw = this._raw();
@@ -512,8 +512,7 @@ const PlanDB = {
     if (!raw[wk][day]) raw[wk][day] = { breakfast: [], lunch: [], dinner: [] };
     const arr = this._norm(raw[wk][day][meal]);
     if (!arr.some(s => s.recipeId === recipeId)) {
-      const r = RecipeDB.get(recipeId);
-      arr.push({ recipeId, servings: r ? r.servings : 1 });
+      arr.push({ recipeId, servings: PrefsDB.get('defaultServings') });
     }
     raw[wk][day][meal] = arr;
     save(DB_PLAN, raw);
@@ -574,7 +573,8 @@ const PREF_DEFAULTS = {
   defaultServings: 1,
   accentColor: 'blue',
   shoppingDay: 0,          // 0=Monday … 6=Sunday (which day the shopping week starts)
-  shoppingReminder: false  // Send a notification on shopping day
+  shoppingReminder: false, // Send a notification on shopping day
+  hapticFeedback: true     // Enable haptic feedback on interactions
 };
 
 const PrefsDB = {
