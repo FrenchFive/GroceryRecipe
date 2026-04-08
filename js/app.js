@@ -1233,7 +1233,7 @@ function renderPlanner() {
       <div class="cal-card-recipe">
         ${recipeVisual(recipe, 'cal-card-emoji')}
         <div class="cal-card-info">
-          <span class="cal-card-name">${escHtml(recipe.name)}</span>
+          <span class="cal-card-name" data-rid="${recipeId}">${escHtml(recipe.name)}</span>
         </div>
         <div class="cal-inline-servings">
           <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="-1" aria-label="Decrease servings">${icon('minus', 12)}</button>
@@ -1414,7 +1414,19 @@ function renderPlanner() {
       page.querySelectorAll('.cal-more-menu.open').forEach(m => m.classList.remove('open'));
       const rid = btn.dataset.rid;
       if (btn.dataset.action === 'view') { detailRecipeId = rid; navigate('detail'); }
-      if (btn.dataset.action === 'edit') { detailRecipeId = rid; navigate('edit'); }
+      if (btn.dataset.action === 'edit') {
+        const card = btn.closest('.cal-card-recipe');
+        if (card) card.classList.toggle('cal-editing');
+      }
+    });
+  });
+
+  /* ── Recipe name → open detail ──── */
+  page.querySelectorAll('.cal-card-name').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      detailRecipeId = el.dataset.rid;
+      navigate('detail');
     });
   });
 

@@ -1272,7 +1272,9 @@ img.cal-card-emoji {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
+.cal-card-name:active { opacity: .6; }
 .cal-card-meta {
   display: block;
   font-size: .75rem;
@@ -1284,7 +1286,7 @@ img.cal-card-emoji {
 
 /* ── Planner inline servings control ────────────────────── */
 .cal-inline-servings {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 3px;
   background: var(--green-bg);
@@ -1292,6 +1294,9 @@ img.cal-card-emoji {
   border-radius: var(--radius);
   padding: 2px 6px;
   flex-shrink: 0;
+}
+.cal-card-recipe.cal-editing .cal-inline-servings {
+  display: flex;
 }
 .cal-srv-btn {
   background: none;
