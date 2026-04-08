@@ -1293,6 +1293,7 @@ function renderPlanner() {
           <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="-1" aria-label="Decrease servings">${icon('minus', 12)}</button>
           <span class="cal-srv-val">${servings}</span>
           <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="1" aria-label="Increase servings">${icon('plus', 12)}</button>
+          <button class="cal-srv-confirm" aria-label="Confirm servings">${icon('check', 14)}</button>
         </div>
         <div class="cal-recipe-actions">
           <button class="cal-more-btn" data-rid="${recipeId}" aria-label="More options">${icon('more-vertical', 16)}</button>
@@ -1455,6 +1456,15 @@ function renderPlanner() {
         const metaEl = card.querySelector('.cal-card-meta');
         if (metaEl) metaEl.textContent = `${newServings} serving${newServings !== 1 ? 's' : ''}`;
       }
+    });
+  });
+
+  /* ── Servings confirm (checkmark) button ──── */
+  page.querySelectorAll('.cal-srv-confirm').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const card = btn.closest('.cal-card-recipe');
+      if (card) card.classList.remove('cal-editing');
     });
   });
 
