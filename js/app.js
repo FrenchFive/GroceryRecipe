@@ -2,7 +2,7 @@
  * app.js – SPA routing, view rendering, event wiring
  */
 
-const APP_VERSION = '0.5.1';
+const APP_VERSION = '0.5.2';
 
 /* ── Inline SVG icon helper (no createIcons dependency) ── */
 const ICON_SVG = {
