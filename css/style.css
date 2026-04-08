@@ -586,6 +586,72 @@ img.emoji.recipe-photo {
   box-shadow: none;
 }
 
+/* ── Generic option picker bottom sheet ───────────────── */
+#option-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+#option-picker.open { pointer-events: all; }
+#option-picker-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0);
+  transition: background .3s;
+}
+#option-picker.open #option-picker-backdrop { background: rgba(0,0,0,.5); }
+#option-picker-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border-top: var(--border-w) solid var(--border);
+  border-left: var(--border-w) solid var(--border);
+  border-right: var(--border-w) solid var(--border);
+  padding: 10px 16px calc(40px + env(safe-area-inset-bottom, 0px));
+  max-height: 50vh;
+  overflow-y: auto;
+  transform: translateY(110%);
+  transition: transform .35s cubic-bezier(.32,.72,0,1);
+}
+#option-picker.open #option-picker-sheet { transform: translateY(0); }
+#option-picker-title {
+  font-size: 1rem;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text);
+}
+.option-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 10px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  font-size: .9rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--text);
+  transition: background .1s;
+}
+.option-picker-item:last-child { border-bottom: none; }
+.option-picker-item:active { background: var(--green-bg); }
+.option-picker-item.selected { color: var(--green); }
+.option-picker-item.selected::after {
+  content: '✓';
+  margin-left: auto;
+  font-weight: 900;
+}
+
 /* ── Unit picker bottom sheet ──────────────────────────── */
 #unit-picker {
   position: fixed;
@@ -1272,7 +1338,9 @@ img.cal-card-emoji {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
+.cal-card-name:active { opacity: .6; }
 .cal-card-meta {
   display: block;
   font-size: .75rem;
@@ -1284,7 +1352,7 @@ img.cal-card-emoji {
 
 /* ── Planner inline servings control ────────────────────── */
 .cal-inline-servings {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 3px;
   background: var(--green-bg);
@@ -1292,6 +1360,9 @@ img.cal-card-emoji {
   border-radius: var(--radius);
   padding: 2px 6px;
   flex-shrink: 0;
+}
+.cal-card-recipe.cal-editing .cal-inline-servings {
+  display: flex;
 }
 .cal-srv-btn {
   background: none;
@@ -1906,8 +1977,13 @@ img.mpi-emoji {
   background: var(--card-bg);
   color: var(--text);
   outline: none;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.recipe-ctrl-select:focus { border-color: var(--green); }
+.recipe-ctrl-select:active { border-color: var(--green); }
 
 /* ── Star button on recipe item ────────────────────────── */
 .recipe-star-btn {
@@ -2016,6 +2092,32 @@ img.mpi-emoji {
   outline: none;
 }
 .picker-search:focus { border-color: var(--green); }
+.picker-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.picker-search-row .picker-search { flex: 1; min-width: 0; }
+.picker-cat-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--body-bg);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.picker-cat-btn:active { border-color: var(--green); }
+.picker-cat-btn.active {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
 .mpi-cat {
   display: block;
   font-size: .68rem;

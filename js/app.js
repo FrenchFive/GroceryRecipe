@@ -56,6 +56,7 @@ let pickerCtx            = null;   // { wk, day, meal } for the meal picker
 let recipeSortMode       = 'default';  // 'default' | 'alpha' | 'newest' | 'oldest' | 'most-planned' | 'least-planned'
 let recipeCategoryFilter = '';         // '' = all, or a category value
 let plannerSearchQuery   = '';         // search filter in planner meal picker
+let plannerPickerCat     = '';         // category filter in planner meal picker
 
 /* ── Planner week helpers ────────────────────────────────── */
 function getPlannerWk() {
@@ -174,6 +175,33 @@ function goBack() {
   }
 }
 
+/* ── Generic option picker ───────────────────────────────── */
+function openOptionPicker(title, options, currentValue, onSelect) {
+  const picker = document.getElementById('option-picker');
+  const list   = document.getElementById('option-picker-list');
+  document.getElementById('option-picker-title').textContent = title;
+
+  list.innerHTML = options.map(o => `
+    <button type="button" class="option-picker-item${o.value === currentValue ? ' selected' : ''}" data-val="${escHtml(o.value)}">
+      ${escHtml(o.label)}
+    </button>
+  `).join('');
+
+  list.querySelectorAll('.option-picker-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      onSelect(btn.dataset.val);
+      closeOptionPicker();
+    });
+  });
+
+  picker.classList.add('open');
+  document.getElementById('option-picker-backdrop').addEventListener('click', closeOptionPicker, { once: true });
+}
+
+function closeOptionPicker() {
+  document.getElementById('option-picker').classList.remove('open');
+}
+
 /* ── Recipe visual helper (photo or emoji) ──────────────── */
 function recipeVisual(r, cls) {
   if (r && r.photo) return `<img class="${cls} recipe-photo" src="${r.photo}" alt="">`;
@@ -219,19 +247,17 @@ function renderRecipes(filter = '') {
     { value: 'least-planned', label: 'Least Planned' },
   ];
 
+  const sortLabel = sortOptions.find(o => o.value === recipeSortMode)?.label || 'Default';
+  const catLabel  = recipeCategoryFilter ? (categories.find(c => c.value === recipeCategoryFilter)?.label || 'All') : 'All';
+
   const controlsHtml = `<div class="recipe-controls">
     <div class="recipe-ctrl-group">
       <label>${icon('arrow-up-down', 14)}</label>
-      <select id="recipe-sort" class="recipe-ctrl-select">
-        ${sortOptions.map(o => `<option value="${o.value}" ${recipeSortMode === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
-      </select>
+      <button type="button" id="recipe-sort" class="recipe-ctrl-select">${escHtml(sortLabel)}</button>
     </div>
     <div class="recipe-ctrl-group">
       <label>${icon('filter', 14)}</label>
-      <select id="recipe-cat-filter" class="recipe-ctrl-select">
-        <option value="">All</option>
-        ${categories.filter(c => c.value).map(c => `<option value="${c.value}" ${recipeCategoryFilter === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
-      </select>
+      <button type="button" id="recipe-cat-filter" class="recipe-ctrl-select">${escHtml(catLabel)}</button>
     </div>
   </div>`;
 
@@ -260,16 +286,21 @@ function renderRecipes(filter = '') {
     }).join('');
   }
 
-  // Wire sort & filter
-  const sortSel = document.getElementById('recipe-sort');
-  const catSel = document.getElementById('recipe-cat-filter');
-  if (sortSel) sortSel.addEventListener('change', () => {
-    recipeSortMode = sortSel.value;
-    renderRecipes(document.getElementById('recipe-search').value);
+  // Wire sort & filter (custom option picker)
+  const sortBtn = document.getElementById('recipe-sort');
+  const catBtn  = document.getElementById('recipe-cat-filter');
+  if (sortBtn) sortBtn.addEventListener('click', () => {
+    openOptionPicker('Sort By', sortOptions, recipeSortMode, val => {
+      recipeSortMode = val;
+      renderRecipes(document.getElementById('recipe-search').value);
+    });
   });
-  if (catSel) catSel.addEventListener('change', () => {
-    recipeCategoryFilter = catSel.value;
-    renderRecipes(document.getElementById('recipe-search').value);
+  if (catBtn) catBtn.addEventListener('click', () => {
+    const catOpts = [{ value: '', label: 'All' }, ...categories.filter(c => c.value)];
+    openOptionPicker('Category', catOpts, recipeCategoryFilter, val => {
+      recipeCategoryFilter = val;
+      renderRecipes(document.getElementById('recipe-search').value);
+    });
   });
 
   // Wire star buttons
@@ -1233,7 +1264,7 @@ function renderPlanner() {
       <div class="cal-card-recipe">
         ${recipeVisual(recipe, 'cal-card-emoji')}
         <div class="cal-card-info">
-          <span class="cal-card-name">${escHtml(recipe.name)}</span>
+          <span class="cal-card-name" data-rid="${recipeId}">${escHtml(recipe.name)}</span>
         </div>
         <div class="cal-inline-servings">
           <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="-1" aria-label="Decrease servings">${icon('minus', 12)}</button>
@@ -1414,7 +1445,19 @@ function renderPlanner() {
       page.querySelectorAll('.cal-more-menu.open').forEach(m => m.classList.remove('open'));
       const rid = btn.dataset.rid;
       if (btn.dataset.action === 'view') { detailRecipeId = rid; navigate('detail'); }
-      if (btn.dataset.action === 'edit') { detailRecipeId = rid; navigate('edit'); }
+      if (btn.dataset.action === 'edit') {
+        const card = btn.closest('.cal-card-recipe');
+        if (card) card.classList.toggle('cal-editing');
+      }
+    });
+  });
+
+  /* ── Recipe name → open detail ──── */
+  page.querySelectorAll('.cal-card-name').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      detailRecipeId = el.dataset.rid;
+      navigate('detail');
     });
   });
 
@@ -1434,7 +1477,10 @@ function renderPlanner() {
 
 /* ── Meal picker bottom sheet ────────────────────────────── */
 function renderMealPickerList(filterText) {
-  const recipes = RecipeDB.search(filterText || '');
+  let recipes = RecipeDB.search(filterText || '');
+  if (plannerPickerCat) {
+    recipes = recipes.filter(r => (r.category || '') === plannerPickerCat);
+  }
   const list = document.getElementById('meal-picker-list');
   if (recipes.length === 0) {
     list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);font-weight:600;">No recipes found</div>`;
@@ -1461,21 +1507,39 @@ function renderMealPickerList(filterText) {
 function openMealPicker(wk, day, meal) {
   pickerCtx = { wk, day, meal };
   plannerSearchQuery = '';
+  plannerPickerCat = '';
   const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
   document.getElementById('meal-picker-title').textContent = `${day} · ${mealLabel}`;
 
-  // Ensure search input exists
+  // Ensure search row exists (input + category filter button)
   let searchInput = document.getElementById('meal-picker-search');
   if (!searchInput) {
     const searchWrap = document.createElement('div');
-    searchWrap.className = 'picker-search-wrap';
-    searchWrap.innerHTML = `<input type="search" id="meal-picker-search" class="picker-search" placeholder="Search recipes…" aria-label="Search recipes">`;
+    searchWrap.className = 'picker-search-wrap picker-search-row';
+    searchWrap.innerHTML = `
+      <input type="search" id="meal-picker-search" class="picker-search" placeholder="Search recipes…" aria-label="Search recipes">
+      <button type="button" id="meal-picker-cat-btn" class="picker-cat-btn" aria-label="Filter by category">${icon('filter', 18)}</button>`;
     const title = document.getElementById('meal-picker-title');
     title.insertAdjacentElement('afterend', searchWrap);
     searchInput = document.getElementById('meal-picker-search');
   }
+
+  // Update category button state
+  const catBtn = document.getElementById('meal-picker-cat-btn');
+  if (catBtn) catBtn.classList.remove('active');
+
   searchInput.value = '';
   searchInput.oninput = () => renderMealPickerList(searchInput.value);
+
+  // Wire category filter button
+  if (catBtn) catBtn.onclick = () => {
+    const catOpts = [{ value: '', label: 'All' }, ...RECIPE_CATEGORIES.filter(c => c.value)];
+    openOptionPicker('Category', catOpts, plannerPickerCat, val => {
+      plannerPickerCat = val;
+      if (catBtn) catBtn.classList.toggle('active', !!val);
+      renderMealPickerList(searchInput.value);
+    });
+  };
 
   renderMealPickerList('');
   refreshIcons();
@@ -1927,6 +1991,20 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
     const CapApp = window.Capacitor.Plugins.App;
     CapApp.addListener('backButton', () => {
+      // Close any open bottom sheet / picker / popup first
+      const optPicker = document.getElementById('option-picker');
+      if (optPicker && optPicker.classList.contains('open')) { closeOptionPicker(); return; }
+      const unitPicker = document.getElementById('unit-picker');
+      if (unitPicker && unitPicker.classList.contains('open')) { unitPicker.classList.remove('open'); return; }
+      const mealPicker = document.getElementById('meal-picker');
+      if (mealPicker && mealPicker.classList.contains('open')) { closeMealPicker(); return; }
+      const shopPicker = document.getElementById('shop-add-picker');
+      if (shopPicker && shopPicker.classList.contains('open')) { closeShopAddPicker(); return; }
+      const openMenus = document.querySelectorAll('.cal-more-menu.open');
+      if (openMenus.length) { openMenus.forEach(m => m.classList.remove('open')); return; }
+      const openAc = document.querySelectorAll('.ing-ac.open');
+      if (openAc.length) { openAc.forEach(d => d.classList.remove('open')); return; }
+
       const prevPage = navHistory.pop();
       if (prevPage) {
         handlingPopState = true;
@@ -1942,6 +2020,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle browser back button (PWA / non-Capacitor fallback)
   window.addEventListener('popstate', () => {
+    // Close any open bottom sheet / picker / popup first
+    const optPicker = document.getElementById('option-picker');
+    if (optPicker && optPicker.classList.contains('open')) { closeOptionPicker(); history.pushState(null, '', ''); return; }
+    const unitPicker = document.getElementById('unit-picker');
+    if (unitPicker && unitPicker.classList.contains('open')) { unitPicker.classList.remove('open'); history.pushState(null, '', ''); return; }
+    const mealPicker = document.getElementById('meal-picker');
+    if (mealPicker && mealPicker.classList.contains('open')) { closeMealPicker(); history.pushState(null, '', ''); return; }
+    const shopPicker = document.getElementById('shop-add-picker');
+    if (shopPicker && shopPicker.classList.contains('open')) { closeShopAddPicker(); history.pushState(null, '', ''); return; }
+    const openMenus = document.querySelectorAll('.cal-more-menu.open');
+    if (openMenus.length) { openMenus.forEach(m => m.classList.remove('open')); history.pushState(null, '', ''); return; }
+    const openAc = document.querySelectorAll('.ing-ac.open');
+    if (openAc.length) { openAc.forEach(d => d.classList.remove('open')); history.pushState(null, '', ''); return; }
+
     const prevPage = navHistory.pop();
     if (prevPage) {
       handlingPopState = true;
