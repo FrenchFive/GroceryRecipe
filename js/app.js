@@ -18,6 +18,7 @@ const ICON_SVG = {
   'cooking-pot': '<path d="M2 12h20"/><path d="M20 12v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8"/><path d="m4 8 16-4"/><path d="m8.86 6.78-.45-1.81a2 2 0 0 1 1.45-2.43l1.94-.48a2 2 0 0 1 2.43 1.46l.45 1.8"/>',
   'list-plus': '<path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/>',
   'minus': '<path d="M5 12h14"/>',
+  'more-vertical': '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
   'moon': '<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>',
   'pencil': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
   'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
@@ -107,7 +108,7 @@ function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
-  const pageEl = document.getElementById('page-' + page);
+  const pageEl = document.getElementById('page-' + (page === 'edit' ? 'add' : page));
   if (pageEl) pageEl.classList.add('active');
 
   const navBtn = document.querySelector(`.nav-btn[data-page="${page}"]`);
@@ -138,7 +139,7 @@ function navigate(page) {
   // show/hide back & add buttons
   const inDetail = page === 'detail' || page === 'add' || page === 'edit';
   document.getElementById('back-btn').style.display = inDetail ? 'flex' : 'none';
-  document.getElementById('btn-add-recipe').style.display = (inDetail || page === 'profile') ? 'none' : 'flex';
+  document.getElementById('btn-add-recipe').style.display = (inDetail || page === 'profile' || page === 'planner') ? 'none' : 'flex';
   document.getElementById('bottom-nav').style.display = inDetail ? 'none' : 'flex';
 
   // Render the page content
@@ -265,7 +266,8 @@ function renderDetail(id) {
     ingList.innerHTML = r.ingredients.map(ing => {
       const qty = parseFloat(ing.qty);
       const scaledQty = isNaN(qty) ? ing.qty : String(Math.round(qty * mult * 100) / 100);
-      return `<li><span>${escHtml(ing.name)}</span>
+      const optBadge = ing.optional ? '<span class="optional-badge">optional</span>' : '';
+      return `<li class="${ing.optional ? 'optional-ing' : ''}"><span>${escHtml(ing.name)} ${optBadge}</span>
                   <span class="ingredient-qty">${scaledQty} ${escHtml(ing.unit)}</span></li>`;
     }).join('');
   }
@@ -441,21 +443,26 @@ function renderAddForm(editId) {
     });
   }
 
-  function addIngRow(name = '', qty = '', unit = '', focus = false) {
+  function addIngRow(name = '', qty = '', unit = '', focus = false, optional = false) {
     const div = document.createElement('div');
-    div.className = 'ingredient-row';
+    div.className = 'ingredient-row-wrap';
     div.innerHTML = `
-      <div class="ing-name-wrap">
-        <input type="text" class="ing-name" placeholder="Flour" value="${escHtml(name)}" autocomplete="off">
-        <div class="ing-ac"></div>
+      <div class="ingredient-row">
+        <div class="ing-name-wrap">
+          <input type="text" class="ing-name" placeholder="Flour" value="${escHtml(name)}" autocomplete="off">
+          <div class="ing-ac"></div>
+        </div>
+        <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
+        <div class="unit-ctrl">
+          <button type="button" class="unit-mag-btn unit-down" aria-label="Smaller unit">${icon('minus', 12)}</button>
+          <select class="ing-unit">${unitOptHtml}</select>
+          <button type="button" class="unit-mag-btn unit-up" aria-label="Larger unit">${icon('plus', 12)}</button>
+        </div>
+        <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
       </div>
-      <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
-      <div class="unit-ctrl">
-        <button type="button" class="unit-mag-btn unit-down" aria-label="Smaller unit">${icon('minus', 12)}</button>
-        <select class="ing-unit">${unitOptHtml}</select>
-        <button type="button" class="unit-mag-btn unit-up" aria-label="Larger unit">${icon('plus', 12)}</button>
-      </div>
-      <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
+      <label class="ing-optional-label">
+        <input type="checkbox" class="ing-optional" ${optional ? 'checked' : ''}> Optional (pantry item)
+      </label>
     `;
     // Set selected unit
     const sel = div.querySelector('.ing-unit');
@@ -520,7 +527,7 @@ function renderAddForm(editId) {
 
   // Pre-fill existing data
   if (r) {
-    r.ingredients.forEach(i => addIngRow(i.name, i.qty, i.unit));
+    r.ingredients.forEach(i => addIngRow(i.name, i.qty, i.unit, false, !!i.optional));
     r.steps.forEach(s => addStepRow(s));
   } else {
     addIngRow(); addIngRow();
@@ -591,11 +598,12 @@ function renderAddForm(editId) {
     const name = document.getElementById('f-name').value.trim();
     if (!name) { showToast('Please enter a recipe name'); return; }
 
-    const ingredients = [...ingContainer.querySelectorAll('.ingredient-row')]
-      .map(row => ({
-        name: row.querySelector('.ing-name').value.trim(),
-        qty:  row.querySelector('.ing-qty').value.trim(),
-        unit: row.querySelector('.ing-unit').value.trim()
+    const ingredients = [...ingContainer.querySelectorAll('.ingredient-row-wrap')]
+      .map(wrap => ({
+        name: wrap.querySelector('.ing-name').value.trim(),
+        qty:  wrap.querySelector('.ing-qty').value.trim(),
+        unit: wrap.querySelector('.ing-unit').value.trim(),
+        optional: wrap.querySelector('.ing-optional')?.checked || false
       }))
       .filter(i => i.name);
 
@@ -642,8 +650,10 @@ function ingredientsForPlannerWeek(wk) {
             const prev = parseFloat(ingMap[k].qty), add = parseFloat(scaledQty);
             if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
             if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
+            // If any recipe marks it as required, it's required
+            if (!ing.optional) ingMap[k].optional = false;
           } else {
-            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, sources: [recipe.name] };
+            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, optional: !!ing.optional, sources: [recipe.name] };
           }
         });
       });
@@ -678,8 +688,9 @@ function ingredientsForShopWeek(swk) {
             const prev = parseFloat(ingMap[k].qty), add = parseFloat(scaledQty);
             if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
             if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
+            if (!ing.optional) ingMap[k].optional = false;
           } else {
-            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, sources: [recipe.name] };
+            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, optional: !!ing.optional, sources: [recipe.name] };
           }
         });
       });
@@ -787,27 +798,16 @@ function renderShoppingWeek(page, tabs, weekOffset) {
   const recurringCheckedKey = `shop_recurring_checked_${swk}`;
   const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
 
-  // --- Add item form ---
-  const addForm = `
-    <div class="card shop-add-form">
-      <div class="shop-add-row">
-        <input type="text" id="shop-add-name" placeholder="Add an item…" class="shop-add-input" aria-label="Item name">
-        <input type="text" id="shop-add-qty" placeholder="Qty" class="shop-add-qty" aria-label="Quantity">
-        <input type="text" id="shop-add-unit" placeholder="Unit" class="shop-add-unit" aria-label="Unit">
-        <button class="btn-icon shop-add-btn" id="shop-add-btn" aria-label="Add item">${icon('plus', 18)}</button>
-      </div>
-      <div class="shop-add-options">
-        <label class="shop-recurring-toggle">
-          <input type="checkbox" id="shop-add-recurring"> ${icon('repeat', 14)} Recurring (every week)
-        </label>
-      </div>
-    </div>`;
+  // Add item form is now in the header + popup (shop-add-picker)
 
-  // --- Recipe-based items ---
+  // --- Recipe-based items (split into required and optional) ---
+  const requiredItems = items.filter(i => !i.optional);
+  const optionalItems = items.filter(i => i.optional);
+
   let recipeSection = '';
-  if (items.length > 0) {
-    const unchecked = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
-    const checked   = items.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+  if (requiredItems.length > 0) {
+    const unchecked = requiredItems.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+    const checked   = requiredItems.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
 
     function recipeItemHtml(i) {
       const key = i.name.toLowerCase() + '\u0000' + i.unit;
@@ -829,6 +829,39 @@ function renderShoppingWeek(page, tabs, weekOffset) {
         ${unchecked.map(recipeItemHtml).join('')}
         ${checked.length && unchecked.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
         ${checked.map(recipeItemHtml).join('')}
+      </div>`;
+  }
+
+  // --- Optional / pantry items from recipes ---
+  let optionalSection = '';
+  if (optionalItems.length > 0) {
+    const uncheckedO = optionalItems.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+    const checkedO   = optionalItems.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+
+    function optionalItemHtml(i) {
+      const key = i.name.toLowerCase() + '\u0000' + i.unit;
+      const isChecked = checkedSet.has(key);
+      const safeKey = btoa(encodeURIComponent(key));
+      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-key="${safeKey}" data-type="recipe">
+        <input type="checkbox" id="chk-${safeKey}" ${isChecked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
+        <label for="chk-${safeKey}">
+          ${escHtml(i.name)}
+          <span class="shop-source">${i.sources.map(escHtml).join(', ')}</span>
+        </label>
+        <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
+      </div>`;
+    }
+
+    optionalSection = `
+      <div class="shop-optional-header" id="shop-optional-toggle">
+        <span class="shop-section-title" style="margin-bottom:0">${icon('chef-hat', 14)} Pantry / Optional</span>
+        <span class="shop-optional-count">${uncheckedO.length} item${uncheckedO.length !== 1 ? 's' : ''}</span>
+        <span class="shop-optional-arrow">${icon('chevron-right', 14)}</span>
+      </div>
+      <div class="card shop-optional-list" id="shop-optional-list" style="display:none;">
+        ${uncheckedO.map(optionalItemHtml).join('')}
+        ${checkedO.length && uncheckedO.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
+        ${checkedO.map(optionalItemHtml).join('')}
       </div>`;
   }
 
@@ -892,7 +925,7 @@ function renderShoppingWeek(page, tabs, weekOffset) {
   const totalItems = items.length + recurringItems.length + customItems.length;
   const emptyState = totalItems === 0 ? `<div class="empty-state">
     <div class="empty-icon">${icon('shopping-cart', 48)}</div>
-    <p>Your shopping list is empty.<br>Add items above or plan meals in the Planner!</p>
+    <p>Your shopping list is empty.<br>Tap + to add items or plan meals in the Planner!</p>
   </div>` : '';
 
   // --- Share / Export buttons ---
@@ -904,31 +937,20 @@ function renderShoppingWeek(page, tabs, weekOffset) {
 
   const weekLabel = `<div class="shop-week-label">${icon('calendar-days', 14)} ${escHtml(label)}</div>`;
 
-  page.innerHTML = tabs + addForm + weekLabel + recipeSection + recurringSection + customSection + emptyState + shareButtons;
+  page.innerHTML = tabs + weekLabel + recipeSection + optionalSection + recurringSection + customSection + emptyState + shareButtons;
 
-  // --- Wire add form ---
-  const addBtn = document.getElementById('shop-add-btn');
-  const addName = document.getElementById('shop-add-name');
-  const addQty = document.getElementById('shop-add-qty');
-  const addUnit = document.getElementById('shop-add-unit');
-  const addRecurring = document.getElementById('shop-add-recurring');
-
-  function doAdd() {
-    const name = addName.value.trim();
-    if (!name) return;
-    if (addRecurring.checked) {
-      RecurringDB.add(name, addQty.value.trim(), addUnit.value.trim());
-      showToast('Recurring item added');
-    } else {
-      CustomItemsDB.add(name, addQty.value.trim(), addUnit.value.trim());
-      showToast('Item added');
-    }
-    renderShopping();
-    updateShoppingBadge();
+  // Wire optional section toggle
+  const optToggle = document.getElementById('shop-optional-toggle');
+  const optList = document.getElementById('shop-optional-list');
+  if (optToggle && optList) {
+    optToggle.addEventListener('click', () => {
+      const open = optList.style.display !== 'none';
+      optList.style.display = open ? 'none' : 'block';
+      optToggle.classList.toggle('open', !open);
+    });
   }
 
-  addBtn.addEventListener('click', doAdd);
-  addName.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
+  // Add form wiring is handled by the shop-add-picker popup (see boot section)
 
   // --- Wire recipe item checkboxes ---
   page.querySelectorAll('.shop-item[data-type="recipe"] input[type=checkbox]').forEach(chk => {
@@ -1048,12 +1070,10 @@ function renderPlanner() {
     // Check if this day has any meals planned
     const dayPlan = plan[day] || { breakfast: [], lunch: [], dinner: [] };
     const hasMeals = MEALS.some(m => (dayPlan[m] || []).length > 0);
-    // Show meal dot if day has meals, otherwise show today dot if applicable
+    // Show meal dot if day has meals (today dot is handled by CSS ::before)
     let dotHtml = '';
     if (hasMeals) {
       dotHtml = '<span class="cal-strip-meals" aria-hidden="true"></span>';
-    } else if (isToday && !isSel) {
-      dotHtml = '<span class="cal-strip-dot" aria-hidden="true"></span>';
     }
     return `<button class="cal-strip-day${isSel ? ' selected' : ''}${isToday ? ' today' : ''}"
               data-idx="${i}" aria-label="${day} ${d.getDate()}" aria-pressed="${isSel}">
@@ -1074,19 +1094,22 @@ function renderPlanner() {
         ${recipeVisual(recipe, 'cal-card-emoji')}
         <div class="cal-card-info">
           <span class="cal-card-name">${escHtml(recipe.name)}</span>
-          <span class="cal-card-meta">${recipe.ingredients.length} ing</span>
         </div>
-        <button class="cal-recipe-remove" data-wk="${wk}" data-day="${escHtml(selDay)}"
-                data-meal="${meal}" data-rid="${recipeId}"
-                aria-label="Remove ${recipe.name}">${icon('x', 14)}</button>
-      </div>
-      <div class="cal-servings-row">
-        <label>Serves:</label>
-        <div class="cal-servings-ctrl">
+        <div class="cal-inline-servings">
           <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="-1" aria-label="Decrease servings">${icon('minus', 12)}</button>
           <span class="cal-srv-val">${servings}</span>
           <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="1" aria-label="Increase servings">${icon('plus', 12)}</button>
         </div>
+        <div class="cal-recipe-actions">
+          <button class="cal-more-btn" data-rid="${recipeId}" aria-label="More options">${icon('more-vertical', 16)}</button>
+          <div class="cal-more-menu">
+            <button class="cal-more-option" data-action="view" data-rid="${recipeId}">${icon('utensils', 14)} View</button>
+            <button class="cal-more-option" data-action="edit" data-rid="${recipeId}">${icon('pencil', 14)} Edit</button>
+          </div>
+        </div>
+        <button class="cal-recipe-remove" data-wk="${wk}" data-day="${escHtml(selDay)}"
+                data-meal="${meal}" data-rid="${recipeId}"
+                aria-label="Remove ${recipe.name}">${icon('x', 14)}</button>
       </div>
     `).join('');
 
@@ -1178,7 +1201,7 @@ function renderPlanner() {
     detail.addEventListener('touchend', e => {
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
-      if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+      if (Math.abs(dx) < 30 || Math.abs(dy) > Math.abs(dx) * 1.5) return;
       const cur = getEffectiveSelIdx(nowDate);
       if (dx < 0) {
         // swipe left → next day
@@ -1232,6 +1255,32 @@ function renderPlanner() {
       PlanDB.setServings(slotWk, slotDay, slotMeal, rid, newServings);
       renderPlanner();
     });
+  });
+
+  /* ── 3-dot menu ──── */
+  page.querySelectorAll('.cal-more-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const menu = btn.nextElementSibling;
+      // Close any other open menus first
+      page.querySelectorAll('.cal-more-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+      menu.classList.toggle('open');
+    });
+  });
+
+  page.querySelectorAll('.cal-more-option').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      page.querySelectorAll('.cal-more-menu.open').forEach(m => m.classList.remove('open'));
+      const rid = btn.dataset.rid;
+      if (btn.dataset.action === 'view') { detailRecipeId = rid; navigate('detail'); }
+      if (btn.dataset.action === 'edit') { detailRecipeId = rid; navigate('edit'); }
+    });
+  });
+
+  // Close menus when tapping elsewhere
+  page.addEventListener('click', () => {
+    page.querySelectorAll('.cal-more-menu.open').forEach(m => m.classList.remove('open'));
   });
 
   /* ── Clear week ──── */
@@ -1652,6 +1701,20 @@ function scheduleShoppingReminder() {
   }
 }
 
+/* ── Shop add item bottom sheet ─────────────────────────── */
+function openShopAddPicker() {
+  const picker = document.getElementById('shop-add-picker');
+  const backdrop = document.getElementById('shop-add-backdrop');
+  picker.classList.add('open');
+  const nameInput = document.querySelector('#shop-add-picker #sap-name');
+  if (nameInput) setTimeout(() => nameInput.focus(), 350);
+  backdrop.addEventListener('click', closeShopAddPicker, { once: true });
+}
+
+function closeShopAddPicker() {
+  document.getElementById('shop-add-picker').classList.remove('open');
+}
+
 /* ── Boot ────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   seedIfEmpty();
@@ -1682,8 +1745,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => { hapticTap(); navigate(btn.dataset.page); });
   });
 
-  // Add recipe button in header
-  document.getElementById('btn-add-recipe').addEventListener('click', () => { hapticTap(); navigate('add'); });
+  // Add button in header – context-aware per page
+  document.getElementById('btn-add-recipe').addEventListener('click', () => {
+    hapticTap();
+    if (currentPage === 'shopping') { openShopAddPicker(); }
+    else { navigate('add'); }
+  });
 
   // Back button
   document.getElementById('back-btn').addEventListener('click', goBack);
@@ -1723,6 +1790,30 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   history.replaceState({ page: 'recipes' }, '', '');
   history.pushState(null, '', '');
+
+  // Wire up shop-add popup form
+  const sapForm = document.getElementById('sap-form');
+  if (sapForm) {
+    sapForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const name = document.getElementById('sap-name').value.trim();
+      if (!name) return;
+      const qty = document.getElementById('sap-qty').value.trim();
+      const unit = document.getElementById('sap-unit').value.trim();
+      const recurring = document.getElementById('sap-recurring').checked;
+      if (recurring) {
+        RecurringDB.add(name, qty, unit);
+        showToast('Recurring item added');
+      } else {
+        CustomItemsDB.add(name, qty, unit);
+        showToast('Item added');
+      }
+      sapForm.reset();
+      closeShopAddPicker();
+      if (currentPage === 'shopping') renderShopping();
+      updateShoppingBadge();
+    });
+  }
 
   // Register service worker (skip inside Capacitor – assets are bundled in the APK)
   if ('serviceWorker' in navigator && !window.Capacitor) {
