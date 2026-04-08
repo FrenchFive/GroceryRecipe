@@ -894,6 +894,28 @@ function renderShopping() {
   page.querySelectorAll('.shop-tab').forEach(tab => {
     tab.addEventListener('click', () => { shoppingView = tab.dataset.view; renderShopping(); });
   });
+
+  /* ── Swipe left/right to switch week ──── */
+  (function() {
+    let startX = 0, startY = 0;
+    page.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+    page.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < 30 || Math.abs(dy) > Math.abs(dx) * 1.5) return;
+      if (dx < 0 && shoppingView === 'current') {
+        shoppingView = 'next';
+        renderShopping();
+      } else if (dx > 0 && shoppingView === 'next') {
+        shoppingView = 'current';
+        renderShopping();
+      }
+    });
+  })();
+
   refreshIcons();
 }
 
