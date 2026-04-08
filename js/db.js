@@ -2,16 +2,16 @@
  * db.js – localStorage-backed data layer
  *
  * Schemas:
- *   Recipe  { id, name, emoji, servings, ingredients:[{name,qty,unit}], steps:[string], createdAt }
+ *   Recipe  { id, name, emoji, photo, servings, ingredients:[{name,qty,unit}], steps:[string], createdAt }
  *   ShopItem{ id, name, qty, unit, checked, source, recipeId }
- *   Plan    { [weekKey]: { [day]: { breakfast, lunch, dinner } } }
- *             each meal slot = { recipeId, servings } | null
+ *   Plan    { [weekKey]: { [day]: { breakfast:[id], lunch:[id], dinner:[id] } } }
  *             weekKey = 'YYYY-MM-DD' of that week's Monday
  */
 
 const DB_RECIPES   = 'gr_recipes';
 const DB_SHOPPING  = 'gr_shopping';
 const DB_PLAN      = 'gr_plan';
+const DB_PREFS     = 'gr_prefs';
 
 const DAYS         = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const DAYS_SHORT   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -46,6 +46,50 @@ function getWeekDates(wk) {
     x.setDate(mon.getDate() + i);
     return x;
   });
+}
+
+/**
+ * Return the start-of-week Date for shopping, based on user's preferred shopping day.
+ * shoppingDay: 0=Monday … 6=Sunday (same indexing as DAYS array).
+ */
+function getShopWeekStart(date, shoppingDay) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  // Convert JS getDay() (0=Sun) to our index (0=Mon … 6=Sun)
+  const dow = d.getDay();
+  const ourIdx = dow === 0 ? 6 : dow - 1; // 0=Mon … 6=Sun
+  let diff = ourIdx - shoppingDay;
+  if (diff < 0) diff += 7;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+/** Week key for shopping (start date based on shopping day pref). */
+function shopWeekKey(date) {
+  const sd = PrefsDB.get('shoppingDay') || 0;
+  const start = getShopWeekStart(date, sd);
+  return `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+}
+
+/** Array of 7 Date objects for the shop week identified by `swk`. */
+function getShopWeekDates(swk) {
+  const [y, mo, dy] = swk.split('-').map(Number);
+  const start = new Date(y, mo - 1, dy);
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(start);
+    x.setDate(start.getDate() + i);
+    return x;
+  });
+}
+
+/** Human-readable range for a shop week key. */
+function formatShopWeekRange(swk) {
+  const dates = getShopWeekDates(swk);
+  const s = dates[0], e = dates[6];
+  const sm = MONTHS_SHORT[s.getMonth()], em = MONTHS_SHORT[e.getMonth()];
+  return s.getMonth() === e.getMonth()
+    ? `${sm} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}`
+    : `${sm} ${s.getDate()} – ${em} ${e.getDate()}, ${e.getFullYear()}`;
 }
 
 /** Human-readable range like "Jun 9 – 15, 2026" or "Jun 30 – Jul 6, 2026". */
@@ -102,7 +146,7 @@ const UNIT_OPTIONS = [
   { value: 'to taste', label: 'to taste', category: 'other' },
 ];
 
-/** Return the category string for a given unit ('mass', 'volume', 'spoon', 'count', 'other'). */
+/** Return the category string for a given unit. */
 function getUnitCategory(unit) {
   const u = (unit || '').trim().toLowerCase();
   for (const [cat, conversions] of Object.entries(UNIT_CONVERSIONS)) {
@@ -120,7 +164,7 @@ function pickBestUnit(baseQty, category) {
   for (let i = order.length - 1; i >= 0; i--) {
     if (baseQty / conv[order[i]] >= 1) return order[i];
   }
-  return order[0]; // fall back to smallest
+  return order[0];
 }
 
 /**
@@ -148,7 +192,6 @@ function mergeQtyUnits(items) {
       const displayQty = Math.round((baseSum / (conv[best] || 1)) * 100) / 100;
       parts.push(`${displayQty} ${best}`);
     } else {
-      // No conversion — group by exact unit and sum
       const byUnit = {};
       entries.forEach(({ qty, unit }) => {
         const u = unit || '';
@@ -196,7 +239,7 @@ const RecipeDB = {
   /** Return unique ingredients {name, unit} across all recipes (sorted by name).
    *  Keeps the first unit encountered per ingredient name. */
   allIngredientsWithUnits() {
-    const map = {}; // lowercaseName → {name, unit}
+    const map = {};
     this.all().forEach(r => {
       r.ingredients.forEach(i => {
         const key = i.name.trim().toLowerCase();
@@ -223,7 +266,6 @@ const ShoppingDB = {
         if (i.name.toLowerCase() !== ing.name.toLowerCase()) return false;
         const existCat = getUnitCategory(i.unit);
         if (existCat !== ingCat) return false;
-        // For categories without conversion, require exact unit match
         return conv ? true : (i.unit || '') === (ing.unit || '');
       });
 
@@ -237,12 +279,10 @@ const ShoppingDB = {
           existing.qty  = String(Math.round((totalBase / (conv[best] || 1)) * 100) / 100);
           existing.unit = best;
         }
-        // Track multiple sources
         if (existing.source && !existing.source.includes(recipe.name)) {
           existing.source += ', ' + recipe.name;
         }
       } else if (existing) {
-        // Same category, no conversion (count/other) — simple add
         const parsed = parseFloat(existing.qty);
         if (!isNaN(parsed) && !isNaN(addQty)) {
           existing.qty = String(Math.round((parsed + addQty) * 100) / 100);
@@ -277,100 +317,174 @@ const ShoppingDB = {
 
   clearAll() { save(DB_SHOPPING, []); },
 
-  addManual(name, qty, unit) {
+  count() { return this.all().filter(i => !i.checked).length; }
+};
+
+/* ── Custom (manual) shopping items ─────────────────────── */
+const DB_CUSTOM_ITEMS = 'gr_custom_items';
+
+const CustomItemsDB = {
+  all() { return load(DB_CUSTOM_ITEMS, []); },
+
+  add(name, qty, unit) {
     const list = this.all();
-    const existing = list.find(
-      i => i.name.toLowerCase() === name.toLowerCase() && i.unit === unit
-    );
-    if (existing) {
-      const parsed = parseFloat(existing.qty);
-      const add    = parseFloat(qty);
-      existing.qty = isNaN(parsed) ? existing.qty : String(Math.round((parsed + add) * 100) / 100);
-    } else {
-      list.push({
-        id:       uid(),
-        name:     name,
-        qty:      qty || '',
-        unit:     unit || '',
-        checked:  false,
-        source:   'Manual',
-        recipeId: null
-      });
-    }
-    save(DB_SHOPPING, list);
+    list.push({ id: uid(), name, qty: qty || '', unit: unit || '', checked: false });
+    save(DB_CUSTOM_ITEMS, list);
   },
+
+  toggle(id) {
+    const list = this.all();
+    const item = list.find(i => i.id === id);
+    if (item) { item.checked = !item.checked; save(DB_CUSTOM_ITEMS, list); }
+  },
+
+  remove(id) { save(DB_CUSTOM_ITEMS, this.all().filter(i => i.id !== id)); },
+
+  clearChecked() { save(DB_CUSTOM_ITEMS, this.all().filter(i => !i.checked)); },
 
   count() { return this.all().filter(i => !i.checked).length; }
 };
 
+/* ── Recurring items (auto-added every week) ────────────── */
+const DB_RECURRING = 'gr_recurring_items';
+
+const RecurringDB = {
+  all() { return load(DB_RECURRING, []); },
+
+  add(name, qty, unit) {
+    const list = this.all();
+    list.push({ id: uid(), name, qty: qty || '', unit: unit || '' });
+    save(DB_RECURRING, list);
+  },
+
+  remove(id) { save(DB_RECURRING, this.all().filter(i => i.id !== id)); },
+
+  update(id, name, qty, unit) {
+    const list = this.all();
+    const item = list.find(i => i.id === id);
+    if (item) {
+      item.name = name;
+      item.qty = qty || '';
+      item.unit = unit || '';
+      save(DB_RECURRING, list);
+    }
+  }
+};
+
 /* ── Weekly planner ──────────────────────────────────────── */
 const PlanDB = {
-  /** Empty plan object for one week. */
+  /** Empty plan object for one week – each meal is an array of recipe IDs. */
   _emptyWeek() {
     const w = {};
-    DAYS.forEach(d => { w[d] = { breakfast: null, lunch: null, dinner: null }; });
+    DAYS.forEach(d => { w[d] = { breakfast: [], lunch: [], dinner: [] }; });
     return w;
   },
 
   /**
-   * Detect the legacy format (top-level keys are day names) and migrate it
-   * to the new week-keyed format transparently.
+   * Ensure a meal value is always an array of { recipeId, servings }.
+   * Migrates from legacy formats: plain string IDs, or mixed arrays.
    */
-  _raw() {
-    const data = load(DB_PLAN, {});
-    if (data && DAYS.some(d => Object.prototype.hasOwnProperty.call(data, d))) {
-      const wk = weekKey(new Date());
-      const migrated = { [wk]: data };
-      save(DB_PLAN, migrated);
-      return migrated;
+  _norm(val) {
+    if (!Array.isArray(val)) {
+      if (!val) return [];
+      if (typeof val === 'string') {
+        const r = RecipeDB.get(val);
+        return [{ recipeId: val, servings: r ? r.servings : 1 }];
+      }
+      if (typeof val === 'object' && val.recipeId) return [val];
+      return [];
     }
-    return data;
-  },
-
-  /** Return the plan for a specific week (empty week if none stored). */
-  allForWeek(wk) {
-    return this._raw()[wk] || this._emptyWeek();
+    return val.filter(Boolean).map(v => {
+      if (typeof v === 'string') {
+        const r = RecipeDB.get(v);
+        return { recipeId: v, servings: r ? r.servings : 1 };
+      }
+      if (typeof v === 'object' && v.recipeId) return v;
+      return null;
+    }).filter(Boolean);
   },
 
   /**
-   * Read a meal slot, normalising legacy string values to { recipeId, servings }.
-   * Returns { recipeId, servings } or null.
+   * Load raw data, migrating legacy formats:
+   * 1. Top-level day keys → week-keyed format
+   * 2. Non-array values → arrays of {recipeId, servings}
    */
-  getSlot(plan, day, meal) {
-    const v = plan[day]?.[meal];
-    if (!v) return null;
-    if (typeof v === 'string') {
-      const recipe = RecipeDB.get(v);
-      return { recipeId: v, servings: recipe ? recipe.servings : 1 };
+  _raw() {
+    let data = load(DB_PLAN, {});
+    // Legacy: top-level day keys
+    if (data && DAYS.some(d => Object.prototype.hasOwnProperty.call(data, d))) {
+      const wk = weekKey(new Date());
+      data = { [wk]: data };
+      save(DB_PLAN, data);
     }
-    return v;
+    // Migrate non-array values to arrays
+    let migrated = false;
+    for (const wk in data) {
+      for (const day of DAYS) {
+        if (!data[wk][day]) continue;
+        for (const meal of MEALS) {
+          const v = data[wk][day][meal];
+          if (v !== undefined && !Array.isArray(v)) {
+            data[wk][day][meal] = this._norm(v);
+            migrated = true;
+          }
+        }
+      }
+    }
+    if (migrated) save(DB_PLAN, data);
+    return data;
   },
 
-  /** Set a single meal slot (stores { recipeId, servings }). */
-  set(wk, day, meal, recipeId) {
+  /** Return the plan for a specific week (normalised – arrays of {recipeId, servings}). */
+  allForWeek(wk) {
+    const week = this._raw()[wk] || this._emptyWeek();
+    DAYS.forEach(d => {
+      if (!week[d]) week[d] = { breakfast: [], lunch: [], dinner: [] };
+      MEALS.forEach(m => { week[d][m] = this._norm(week[d][m]); });
+    });
+    return week;
+  },
+
+  /** Add a recipe to a meal slot with its default servings. */
+  add(wk, day, meal, recipeId) {
+    if (!recipeId) return;
     const raw = this._raw();
     if (!raw[wk])      raw[wk]      = this._emptyWeek();
-    if (!raw[wk][day]) raw[wk][day] = { breakfast: null, lunch: null, dinner: null };
-    if (recipeId) {
-      const recipe = RecipeDB.get(recipeId);
-      raw[wk][day][meal] = { recipeId, servings: recipe ? recipe.servings : 1 };
-    } else {
-      raw[wk][day][meal] = null;
+    if (!raw[wk][day]) raw[wk][day] = { breakfast: [], lunch: [], dinner: [] };
+    const arr = this._norm(raw[wk][day][meal]);
+    if (!arr.some(s => s.recipeId === recipeId)) {
+      const r = RecipeDB.get(recipeId);
+      arr.push({ recipeId, servings: r ? r.servings : 1 });
     }
+    raw[wk][day][meal] = arr;
     save(DB_PLAN, raw);
   },
 
-  /** Update just the servings for an existing meal slot. */
-  setServings(wk, day, meal, servings) {
+  /** Remove a specific recipe from a meal slot. */
+  remove(wk, day, meal, recipeId) {
     const raw = this._raw();
-    const slot = raw[wk]?.[day]?.[meal];
-    if (!slot) return;
-    // Handle legacy string format
-    if (typeof slot === 'string') {
-      raw[wk][day][meal] = { recipeId: slot, servings };
-    } else {
-      slot.servings = servings;
-    }
+    if (!raw[wk]?.[day]) return;
+    const arr = this._norm(raw[wk][day][meal]);
+    raw[wk][day][meal] = arr.filter(s => s.recipeId !== recipeId);
+    save(DB_PLAN, raw);
+  },
+
+  /** Update servings for a specific recipe in a meal slot. */
+  setServings(wk, day, meal, recipeId, servings) {
+    const raw = this._raw();
+    if (!raw[wk]?.[day]) return;
+    const arr = this._norm(raw[wk][day][meal]);
+    const slot = arr.find(s => s.recipeId === recipeId);
+    if (slot) { slot.servings = servings; }
+    raw[wk][day][meal] = arr;
+    save(DB_PLAN, raw);
+  },
+
+  /** Clear all recipes from a meal slot. */
+  clearMeal(wk, day, meal) {
+    const raw = this._raw();
+    if (!raw[wk]?.[day]) return;
+    raw[wk][day][meal] = [];
     save(DB_PLAN, raw);
   },
 
@@ -380,6 +494,42 @@ const PlanDB = {
     delete raw[wk];
     save(DB_PLAN, raw);
   }
+};
+
+/* ── Accent color presets ────────────────────────────────── */
+const ACCENT_COLORS = {
+  green:  { label: 'Green',  main: '#2e7d32', light: '#43a047', bg: '#e8f5e9' },
+  teal:   { label: 'Teal',   main: '#00796b', light: '#00897b', bg: '#e0f2f1' },
+  blue:   { label: 'Blue',   main: '#1565c0', light: '#1e88e5', bg: '#e3f2fd' },
+  indigo: { label: 'Indigo', main: '#283593', light: '#3949ab', bg: '#e8eaf6' },
+  purple: { label: 'Purple', main: '#6a1b9a', light: '#8e24aa', bg: '#f3e5f5' },
+  pink:   { label: 'Pink',   main: '#c2185b', light: '#d81b60', bg: '#fce4ec' },
+  red:    { label: 'Red',    main: '#c62828', light: '#e53935', bg: '#ffebee' },
+  orange: { label: 'Orange', main: '#e65100', light: '#f4511e', bg: '#fbe9e7' },
+  amber:  { label: 'Amber',  main: '#f57f17', light: '#f9a825', bg: '#fff8e1' },
+  brown:  { label: 'Brown',  main: '#4e342e', light: '#6d4c41', bg: '#efebe9' },
+};
+
+/* ── User preferences ───────────────────────────────────── */
+const PREF_DEFAULTS = {
+  defaultServings: 2,
+  accentColor: 'blue',
+  shoppingDay: 0,          // 0=Monday … 6=Sunday (which day the shopping week starts)
+  shoppingReminder: false  // Send a notification on shopping day
+};
+
+const PrefsDB = {
+  all() { return { ...PREF_DEFAULTS, ...load(DB_PREFS, {}) }; },
+
+  get(key) { return this.all()[key]; },
+
+  set(key, value) {
+    const prefs = this.all();
+    prefs[key] = value;
+    save(DB_PREFS, prefs);
+  },
+
+  reset() { save(DB_PREFS, {}); }
 };
 
 /* ── Seed data ───────────────────────────────────────────── */
