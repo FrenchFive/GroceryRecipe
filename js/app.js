@@ -479,21 +479,54 @@ function renderAddForm(editId) {
   // Ingredient autocomplete data: [{name, unit}]
   const knownIngredients = RecipeDB.allIngredientsWithUnits();
 
-  // Build unit <select> options HTML (grouped by category)
-  const unitOptHtml = (() => {
-    const cats = [
-      { label: 'Count',  units: UNIT_OPTIONS.filter(u => u.category === 'count') },
-      { label: 'Mass',   units: UNIT_OPTIONS.filter(u => u.category === 'mass') },
-      { label: 'Volume', units: UNIT_OPTIONS.filter(u => u.category === 'volume') },
-      { label: 'Spoon',  units: UNIT_OPTIONS.filter(u => u.category === 'spoon') },
-      { label: 'Other',  units: UNIT_OPTIONS.filter(u => u.category === 'other') },
-    ];
-    return cats.map(c =>
-      `<optgroup label="${c.label}">${c.units.map(u =>
-        `<option value="${escHtml(u.value)}">${escHtml(u.label)}</option>`
-      ).join('')}</optgroup>`
-    ).join('');
-  })();
+  // Unit data grouped by category (for custom picker)
+  const unitCategories = [
+    { label: 'Count',  units: UNIT_OPTIONS.filter(u => u.category === 'count') },
+    { label: 'Mass',   units: UNIT_OPTIONS.filter(u => u.category === 'mass') },
+    { label: 'Volume', units: UNIT_OPTIONS.filter(u => u.category === 'volume') },
+    { label: 'Spoon',  units: UNIT_OPTIONS.filter(u => u.category === 'spoon') },
+    { label: 'Other',  units: UNIT_OPTIONS.filter(u => u.category === 'other') },
+  ];
+
+  /** Currently-open unit picker target (the row's hidden input + display btn) */
+  let activeUnitTarget = null;
+
+  function openUnitPicker(hiddenInput, displayBtn) {
+    activeUnitTarget = { hiddenInput, displayBtn };
+    const picker = document.getElementById('unit-picker');
+    const list   = document.getElementById('unit-picker-list');
+    const currentVal = hiddenInput.value;
+
+    list.innerHTML = unitCategories.map(cat => `
+      <div class="unit-picker-cat">${escHtml(cat.label)}</div>
+      <div class="unit-picker-group">
+        ${cat.units.map(u => `
+          <button type="button" class="unit-picker-item${u.value === currentVal ? ' selected' : ''}" data-val="${escHtml(u.value)}">
+            ${escHtml(u.label)}
+          </button>
+        `).join('')}
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.unit-picker-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.dataset.val;
+        if (activeUnitTarget) {
+          activeUnitTarget.hiddenInput.value = val;
+          activeUnitTarget.displayBtn.textContent = UNIT_OPTIONS.find(u => u.value === val)?.label || 'unit';
+        }
+        closeUnitPicker();
+      });
+    });
+
+    picker.classList.add('open');
+    document.getElementById('unit-picker-backdrop').addEventListener('click', closeUnitPicker, { once: true });
+  }
+
+  function closeUnitPicker() {
+    document.getElementById('unit-picker').classList.remove('open');
+    activeUnitTarget = null;
+  }
 
   /** Debounce helper */
   function debounce(fn, ms) {
@@ -524,9 +557,10 @@ function renderAddForm(editId) {
         item.addEventListener('mousedown', e => {
           e.preventDefault();
           nameInput.value = match.name;
-          const sel = row.querySelector('.ing-unit');
-          const opt = [...sel.options].find(o => o.value === (match.unit || ''));
-          if (opt) sel.value = opt.value;
+          const hiddenUnit = row.querySelector('.ing-unit');
+          const unitBtn = row.querySelector('.ing-unit-btn');
+          if (hiddenUnit) hiddenUnit.value = match.unit || '';
+          if (unitBtn) unitBtn.textContent = UNIT_OPTIONS.find(u => u.value === (match.unit || ''))?.label || match.unit || 'unit';
           dropdown.classList.remove('open');
         });
         dropdown.appendChild(item);
@@ -545,6 +579,7 @@ function renderAddForm(editId) {
   }
 
   function addIngRow(name = '', qty = '', unit = '', focus = false, optional = false) {
+    const unitLabel = UNIT_OPTIONS.find(u => u.value === (unit || ''))?.label || unit || 'unit';
     const div = document.createElement('div');
     div.className = 'ingredient-row-wrap';
     div.innerHTML = `
@@ -554,22 +589,19 @@ function renderAddForm(editId) {
           <div class="ing-ac"></div>
         </div>
         <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
-        <select class="ing-unit">${unitOptHtml}</select>
+        <input type="hidden" class="ing-unit" value="${escHtml(unit)}">
+        <button type="button" class="ing-unit-btn" aria-label="Select unit">${escHtml(unitLabel)}</button>
         <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
       </div>
       <label class="ing-optional-label">
         <input type="checkbox" class="ing-optional" ${optional ? 'checked' : ''}> Optional (pantry item)
       </label>
     `;
-    // Set selected unit
-    const sel = div.querySelector('.ing-unit');
-    const matchOpt = [...sel.options].find(o => o.value === (unit || ''));
-    if (matchOpt) matchOpt.selected = true;
-    else if (unit) {
-      const opt = document.createElement('option');
-      opt.value = unit; opt.textContent = unit; opt.selected = true;
-      sel.appendChild(opt);
-    }
+
+    // Wire custom unit picker button
+    const hiddenInput = div.querySelector('.ing-unit');
+    const unitBtn = div.querySelector('.ing-unit-btn');
+    unitBtn.addEventListener('click', () => openUnitPicker(hiddenInput, unitBtn));
 
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
 
