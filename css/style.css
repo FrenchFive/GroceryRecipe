@@ -492,7 +492,7 @@ img.emoji.recipe-photo {
 
 .ingredient-row {
   display: grid;
-  grid-template-columns: 1fr 65px auto 32px;
+  grid-template-columns: 1fr 60px 75px 32px;
   gap: 6px;
   margin-bottom: 8px;
   align-items: center;
@@ -556,22 +556,16 @@ img.emoji.recipe-photo {
 
 .ingredient-header {
   display: grid;
-  grid-template-columns: 1fr 65px auto 32px;
+  grid-template-columns: 1fr 60px 75px 32px;
   gap: 6px;
   margin-bottom: 6px;
 }
 .ingredient-header span { font-size: .75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
-.ing-unit-hdr { min-width: 110px; }
 
-/* Unit control: − [select] + */
-.unit-ctrl {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.unit-ctrl select {
-  width: 65px;
-  padding: 6px 2px;
+/* Unit select */
+.ing-unit {
+  width: 100%;
+  padding: 8px 4px;
   font-size: .85rem;
   border: 2px solid var(--border);
   border-radius: var(--radius);
@@ -579,28 +573,9 @@ img.emoji.recipe-photo {
   text-align: center;
   font-weight: 700;
   font-family: inherit;
-  -webkit-appearance: none;
-  appearance: none;
+  outline: none;
 }
-.unit-ctrl select:focus { border-color: var(--green); outline: none; }
-.unit-mag-btn {
-  width: 26px;
-  height: 32px;
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--card-bg);
-  color: var(--green);
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  flex-shrink: 0;
-  box-shadow: 2px 2px 0 var(--border);
-}
-.unit-mag-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+.ing-unit:focus { border-color: var(--green); }
 
 .step-row {
   display: grid;
@@ -1813,4 +1788,152 @@ img.mpi-emoji {
   font-size: .72rem;
   font-weight: 600;
   letter-spacing: .03em;
+}
+
+/* ── Recipe list controls (sort & filter) ──────────────── */
+.recipe-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.recipe-ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.recipe-ctrl-group > label {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.recipe-ctrl-select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .78rem;
+  font-weight: 700;
+  font-family: inherit;
+  background: var(--card-bg);
+  color: var(--text);
+  outline: none;
+}
+.recipe-ctrl-select:focus { border-color: var(--green); }
+
+/* ── Star button on recipe item ────────────────────────── */
+.recipe-star-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: .4;
+  transition: opacity .15s, color .15s;
+}
+.recipe-star-btn.starred {
+  color: #f59e0b;
+  opacity: 1;
+}
+.recipe-star-btn.starred svg { fill: #f59e0b; }
+.recipe-star-btn:active { opacity: .7; }
+
+/* ── Tags ──────────────────────────────────────────────── */
+.tags-input-wrap {
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  background: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.tags-input-wrap:focus-within { border-color: var(--green); }
+.tags-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: .72rem;
+  font-weight: 800;
+  text-transform: lowercase;
+}
+.tag-chip-x {
+  background: none;
+  border: none;
+  color: var(--green);
+  font-size: .9rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  font-weight: 900;
+}
+#f-tags-input {
+  border: none;
+  outline: none;
+  font-size: .9rem;
+  font-weight: 600;
+  font-family: inherit;
+  flex: 1;
+  min-width: 80px;
+  padding: 4px 0;
+  background: transparent;
+}
+.recipe-tag-chip {
+  display: inline-block;
+  background: var(--green-bg);
+  color: var(--green);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: .6rem;
+  font-weight: 800;
+  text-transform: lowercase;
+  vertical-align: middle;
+}
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 8px;
+}
+.detail-tags .recipe-tag-chip {
+  font-size: .7rem;
+  padding: 2px 8px;
+}
+
+/* ── Meal picker search ────────────────────────────────── */
+.picker-search-wrap {
+  margin-bottom: 10px;
+}
+.picker-search {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .9rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--body-bg);
+  outline: none;
+}
+.picker-search:focus { border-color: var(--green); }
+.mpi-cat {
+  display: block;
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--text-muted);
 }

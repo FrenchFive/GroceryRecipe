@@ -17,6 +17,8 @@ const ICON_SVG = {
   'clipboard-copy': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M16 4h2a2 2 0 0 1 2 2v4"/><path d="M21 14H11"/><path d="m15 10-4 4 4 4"/>',
   'cooking-pot': '<path d="M2 12h20"/><path d="M20 12v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8"/><path d="m4 8 16-4"/><path d="m8.86 6.78-.45-1.81a2 2 0 0 1 1.45-2.43l1.94-.48a2 2 0 0 1 2.43 1.46l.45 1.8"/>',
   'list-plus': '<path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/>',
+  'arrow-up-down': '<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
+  'filter': '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
   'minus': '<path d="M5 12h14"/>',
   'more-vertical': '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
   'moon': '<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>',
@@ -24,6 +26,8 @@ const ICON_SVG = {
   'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
   'repeat': '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
   'save': '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+  'star': '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  'tag': '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
   'search': '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
   'share-2': '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
   'shopping-cart': '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
@@ -49,6 +53,9 @@ let plannerWeekOffset    = 0;      // 0 = current week, ±n = n weeks offset
 let plannerSelectedDayIdx = null;  // null = auto-select today/Mon, 0-6 = explicit selection
 let shoppingView         = 'current'; // 'current' | 'next'
 let pickerCtx            = null;   // { wk, day, meal } for the meal picker
+let recipeSortMode       = 'default';  // 'default' | 'alpha' | 'newest' | 'oldest' | 'most-planned' | 'least-planned'
+let recipeCategoryFilter = '';         // '' = all, or a category value
+let plannerSearchQuery   = '';         // search filter in planner meal picker
 
 /* ── Planner week helpers ────────────────────────────────── */
 function getPlannerWk() {
@@ -174,30 +181,108 @@ function recipeVisual(r, cls) {
 }
 
 /* ── Recipes page ────────────────────────────────────────── */
+function sortRecipes(list) {
+  // Starred always float to top, then apply sort
+  const starred = list.filter(r => r.starred);
+  const rest = list.filter(r => !r.starred);
+  function applySortTo(arr) {
+    switch (recipeSortMode) {
+      case 'alpha':         return arr.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+      case 'newest':        return arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      case 'oldest':        return arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      case 'most-planned':  return arr.sort((a, b) => RecipeDB.planCount(b.id) - RecipeDB.planCount(a.id));
+      case 'least-planned': return arr.sort((a, b) => RecipeDB.planCount(a.id) - RecipeDB.planCount(b.id));
+      default:              return arr; // insertion order
+    }
+  }
+  return [...applySortTo(starred), ...applySortTo(rest)];
+}
+
 function renderRecipes(filter = '') {
-  const list = RecipeDB.search(filter);
+  let list = RecipeDB.search(filter);
+  // Apply category filter
+  if (recipeCategoryFilter) {
+    list = list.filter(r => (r.category || '') === recipeCategoryFilter);
+  }
+  list = sortRecipes(list);
+
   const container = document.getElementById('recipe-list');
 
+  // Sort & filter controls
+  const categories = RECIPE_CATEGORIES;
+  const sortOptions = [
+    { value: 'default',       label: 'Default' },
+    { value: 'alpha',         label: 'A → Z' },
+    { value: 'newest',        label: 'Newest' },
+    { value: 'oldest',        label: 'Oldest' },
+    { value: 'most-planned',  label: 'Most Planned' },
+    { value: 'least-planned', label: 'Least Planned' },
+  ];
+
+  const controlsHtml = `<div class="recipe-controls">
+    <div class="recipe-ctrl-group">
+      <label>${icon('arrow-up-down', 14)}</label>
+      <select id="recipe-sort" class="recipe-ctrl-select">
+        ${sortOptions.map(o => `<option value="${o.value}" ${recipeSortMode === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="recipe-ctrl-group">
+      <label>${icon('filter', 14)}</label>
+      <select id="recipe-cat-filter" class="recipe-ctrl-select">
+        <option value="">All</option>
+        ${categories.filter(c => c.value).map(c => `<option value="${c.value}" ${recipeCategoryFilter === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
+      </select>
+    </div>
+  </div>`;
+
   if (list.length === 0) {
-    container.innerHTML = `
+    container.innerHTML = controlsHtml + `
       <div class="empty-state">
         <div class="empty-icon">${icon('cooking-pot', 48)}</div>
-        <p>${filter ? 'No recipes match your search.' : 'No recipes yet. Tap + to add one!'}</p>
+        <p>${filter || recipeCategoryFilter ? 'No recipes match your search.' : 'No recipes yet. Tap + to add one!'}</p>
       </div>`;
-    return;
+  } else {
+    container.innerHTML = controlsHtml + list.map(r => {
+      const catLabel = r.category ? (RECIPE_CATEGORIES.find(c => c.value === r.category)?.label || '') : '';
+      const tagsHtml = (r.tags || []).map(t => `<span class="recipe-tag-chip">${escHtml(t)}</span>`).join('');
+      const metaParts = [`${r.ingredients.length} ing`, `serves ${r.servings}`];
+      if (catLabel) metaParts.push(catLabel);
+      return `
+        <div class="recipe-item" data-id="${r.id}" role="button" tabindex="0">
+          <button class="recipe-star-btn${r.starred ? ' starred' : ''}" data-id="${r.id}" aria-label="${r.starred ? 'Unstar' : 'Star'}">${icon('star', 18)}</button>
+          ${recipeVisual(r, 'recipe-emoji')}
+          <div class="recipe-info">
+            <h3>${escHtml(r.name)}</h3>
+            <p>${metaParts.join(' · ')}${tagsHtml ? ' ' + tagsHtml : ''}</p>
+          </div>
+          <span class="recipe-arrow">${icon('chevron-right', 18)}</span>
+        </div>`;
+    }).join('');
   }
 
-  container.innerHTML = list.map(r => `
-    <div class="recipe-item" data-id="${r.id}" role="button" tabindex="0">
-      ${recipeVisual(r, 'recipe-emoji')}
-      <div class="recipe-info">
-        <h3>${escHtml(r.name)}</h3>
-        <p>${r.ingredients.length} ingredients &bull; serves ${r.servings}</p>
-      </div>
-      <span class="recipe-arrow">${icon('chevron-right', 18)}</span>
-    </div>
-  `).join('');
+  // Wire sort & filter
+  const sortSel = document.getElementById('recipe-sort');
+  const catSel = document.getElementById('recipe-cat-filter');
+  if (sortSel) sortSel.addEventListener('change', () => {
+    recipeSortMode = sortSel.value;
+    renderRecipes(document.getElementById('recipe-search').value);
+  });
+  if (catSel) catSel.addEventListener('change', () => {
+    recipeCategoryFilter = catSel.value;
+    renderRecipes(document.getElementById('recipe-search').value);
+  });
 
+  // Wire star buttons
+  container.querySelectorAll('.recipe-star-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      hapticTap();
+      RecipeDB.toggleStar(btn.dataset.id);
+      renderRecipes(document.getElementById('recipe-search').value);
+    });
+  });
+
+  // Wire recipe item clicks
   container.querySelectorAll('.recipe-item').forEach(el => {
     el.addEventListener('click', () => openDetail(el.dataset.id));
     el.addEventListener('keydown', e => { if (e.key === 'Enter') openDetail(el.dataset.id); });
@@ -220,7 +305,8 @@ function renderDetail(id) {
     <div class="detail-header">
       ${r.photo ? `<img class="emoji recipe-photo" src="${r.photo}" alt="">` : `<div class="emoji">${r.emoji || '🍽'}</div>`}
       <h2>${escHtml(r.name)}</h2>
-      <p>Base: ${r.servings} serving${r.servings > 1 ? 's' : ''}</p>
+      <p>Base: ${r.servings} serving${r.servings > 1 ? 's' : ''}${r.category ? ' · ' + escHtml(RECIPE_CATEGORIES.find(c => c.value === r.category)?.label || r.category) : ''}</p>
+      ${(r.tags || []).length ? `<div class="detail-tags">${r.tags.map(t => `<span class="recipe-tag-chip">${escHtml(t)}</span>`).join('')}</div>` : ''}
     </div>
 
     <!-- Servings selector -->
@@ -344,6 +430,21 @@ function renderAddForm(editId) {
           <label>Base Servings *</label>
           <input type="number" id="f-servings" min="1" value="${r ? r.servings : PrefsDB.get('defaultServings')}" required>
         </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="f-category" class="recipe-ctrl-select" style="width:100%;padding:10px 14px;font-size:.95rem;">
+            ${RECIPE_CATEGORIES.map(c => `<option value="${c.value}" ${(r?.category || '') === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tags</label>
+          <div class="tags-input-wrap">
+            <div class="tags-chips" id="f-tags-chips">
+              ${(r?.tags || []).map(t => `<span class="tag-chip">${escHtml(t)} <button type="button" class="tag-chip-x" data-tag="${escHtml(t)}">&times;</button></span>`).join('')}
+            </div>
+            <input type="text" id="f-tags-input" placeholder="Type a tag and press Enter">
+          </div>
+        </div>
       </div>
 
       <!-- Ingredients -->
@@ -352,7 +453,7 @@ function renderAddForm(editId) {
         <div class="ingredient-header">
           <span>Name</span>
           <span>Qty</span>
-          <span class="ing-unit-hdr">Unit</span>
+          <span>Unit</span>
           <span></span>
         </div>
         <div id="ing-rows"></div>
@@ -453,11 +554,7 @@ function renderAddForm(editId) {
           <div class="ing-ac"></div>
         </div>
         <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
-        <div class="unit-ctrl">
-          <button type="button" class="unit-mag-btn unit-down" aria-label="Smaller unit">${icon('minus', 12)}</button>
-          <select class="ing-unit">${unitOptHtml}</select>
-          <button type="button" class="unit-mag-btn unit-up" aria-label="Larger unit">${icon('plus', 12)}</button>
-        </div>
+        <select class="ing-unit">${unitOptHtml}</select>
         <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
       </div>
       <label class="ing-optional-label">
@@ -474,9 +571,6 @@ function renderAddForm(editId) {
       sel.appendChild(opt);
     }
 
-    // Magnitude +/- : cycle to next/prev unit in same category & adjust qty
-    div.querySelector('.unit-up').addEventListener('click', () => shiftUnit(div, 1));
-    div.querySelector('.unit-down').addEventListener('click', () => shiftUnit(div, -1));
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
 
     // Autocomplete
@@ -488,30 +582,6 @@ function renderAddForm(editId) {
       const nameInput = div.querySelector('.ing-name');
       setTimeout(() => nameInput.focus(), 0);
     }
-  }
-
-  function shiftUnit(row, dir) {
-    const sel     = row.querySelector('.ing-unit');
-    const qtyEl   = row.querySelector('.ing-qty');
-    const curUnit = sel.value;
-    const cat     = getUnitCategory(curUnit);
-    const order   = UNIT_ORDER[cat];
-    const conv    = UNIT_CONVERSIONS[cat];
-    if (!order || !conv) return;
-
-    const idx = order.indexOf(curUnit);
-    if (idx < 0) return;
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= order.length) return;
-
-    const newUnit = order[newIdx];
-    const curQty  = parseFloat(qtyEl.value);
-    if (!isNaN(curQty)) {
-      const base   = curQty * conv[curUnit];
-      const newQty = Math.round((base / conv[newUnit]) * 1000) / 1000;
-      qtyEl.value  = newQty;
-    }
-    sel.value = newUnit;
   }
 
   function addStepRow(text = '') {
@@ -530,7 +600,7 @@ function renderAddForm(editId) {
     r.ingredients.forEach(i => addIngRow(i.name, i.qty, i.unit, false, !!i.optional));
     r.steps.forEach(s => addStepRow(s));
   } else {
-    addIngRow(); addIngRow();
+    addIngRow();
     addStepRow();
   }
 
@@ -593,10 +663,46 @@ function renderAddForm(editId) {
     clearBtn.style.display = 'none';
   });
 
+  // Tags input logic
+  const pendingTags = r && Array.isArray(r.tags) ? [...r.tags] : [];
+  const tagsChips = document.getElementById('f-tags-chips');
+  const tagsInput = document.getElementById('f-tags-input');
+
+  function renderTagsChips() {
+    tagsChips.innerHTML = pendingTags.map(t =>
+      `<span class="tag-chip">${escHtml(t)} <button type="button" class="tag-chip-x" data-tag="${escHtml(t)}">&times;</button></span>`
+    ).join('');
+    tagsChips.querySelectorAll('.tag-chip-x').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        const idx = pendingTags.indexOf(btn.dataset.tag);
+        if (idx >= 0) pendingTags.splice(idx, 1);
+        renderTagsChips();
+      });
+    });
+  }
+  renderTagsChips();
+
+  tagsInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const tag = tagsInput.value.trim().replace(/,/g, '');
+      if (tag && !pendingTags.includes(tag)) {
+        pendingTags.push(tag);
+        renderTagsChips();
+      }
+      tagsInput.value = '';
+    }
+  });
+
   document.getElementById('recipe-form').addEventListener('submit', e => {
     e.preventDefault();
     const name = document.getElementById('f-name').value.trim();
     if (!name) { showToast('Please enter a recipe name'); return; }
+
+    // Capture any tag still in the input
+    const trailingTag = tagsInput.value.trim().replace(/,/g, '');
+    if (trailingTag && !pendingTags.includes(trailingTag)) pendingTags.push(trailingTag);
 
     const ingredients = [...ingContainer.querySelectorAll('.ingredient-row-wrap')]
       .map(wrap => ({
@@ -618,6 +724,8 @@ function renderAddForm(editId) {
       emoji:     usePhoto ? '' : (document.getElementById('f-emoji').value.trim() || '🍽'),
       photo:     usePhoto ? pendingPhoto : null,
       servings:  Math.max(1, parseInt(document.getElementById('f-servings').value) || 1),
+      category:  document.getElementById('f-category').value,
+      tags:      [...pendingTags],
       ingredients,
       steps
     };
@@ -1293,21 +1401,21 @@ function renderPlanner() {
 }
 
 /* ── Meal picker bottom sheet ────────────────────────────── */
-function openMealPicker(wk, day, meal) {
-  pickerCtx = { wk, day, meal };
-  const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
-  document.getElementById('meal-picker-title').textContent = `${day} · ${mealLabel}`;
-
-  const recipes = RecipeDB.all();
-  const list    = document.getElementById('meal-picker-list');
-  list.innerHTML = `
-    ${recipes.map(r => `
+function renderMealPickerList(filterText) {
+  const recipes = RecipeDB.search(filterText || '');
+  const list = document.getElementById('meal-picker-list');
+  if (recipes.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);font-weight:600;">No recipes found</div>`;
+    return;
+  }
+  list.innerHTML = recipes.map(r => {
+    const catLabel = r.category ? (RECIPE_CATEGORIES.find(c => c.value === r.category)?.label || '') : '';
+    return `
       <button class="meal-picker-item" data-id="${r.id}">
         ${recipeVisual(r, 'mpi-emoji')}
-        <span class="mpi-name">${escHtml(r.name)}</span>
-      </button>
-    `).join('')}
-  `;
+        <span class="mpi-name">${escHtml(r.name)}${catLabel ? `<span class="mpi-cat">${escHtml(catLabel)}</span>` : ''}</span>
+      </button>`;
+  }).join('');
 
   list.querySelectorAll('.meal-picker-item').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1316,11 +1424,34 @@ function openMealPicker(wk, day, meal) {
       renderPlanner();
     });
   });
+}
 
+function openMealPicker(wk, day, meal) {
+  pickerCtx = { wk, day, meal };
+  plannerSearchQuery = '';
+  const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
+  document.getElementById('meal-picker-title').textContent = `${day} · ${mealLabel}`;
+
+  // Ensure search input exists
+  let searchInput = document.getElementById('meal-picker-search');
+  if (!searchInput) {
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'picker-search-wrap';
+    searchWrap.innerHTML = `<input type="search" id="meal-picker-search" class="picker-search" placeholder="Search recipes…" aria-label="Search recipes">`;
+    const title = document.getElementById('meal-picker-title');
+    title.insertAdjacentElement('afterend', searchWrap);
+    searchInput = document.getElementById('meal-picker-search');
+  }
+  searchInput.value = '';
+  searchInput.oninput = () => renderMealPickerList(searchInput.value);
+
+  renderMealPickerList('');
   refreshIcons();
+
   const picker   = document.getElementById('meal-picker');
   const backdrop = document.getElementById('meal-picker-backdrop');
   picker.classList.add('open');
+  setTimeout(() => searchInput.focus(), 350);
   backdrop.addEventListener('click', closeMealPicker, { once: true });
 }
 
