@@ -1218,8 +1218,7 @@ img.emoji.recipe-photo {
   transform: translateX(-50%);
 }
 .cal-strip-day.selected .cal-strip-meals {
-  background: var(--green-bg);
-  border: 1px solid rgba(255,255,255,.6);
+  background: var(--green);
 }
 .cal-strip-dot {
   width: 6px;
@@ -1388,6 +1387,23 @@ img.cal-card-emoji {
   min-width: 16px;
   text-align: center;
 }
+.cal-srv-confirm {
+  background: var(--green);
+  border: none;
+  color: #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 4px;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.cal-srv-confirm:active { background: var(--green-dark, #1a7a3a); }
 
 /* ── 3-dot menu ────────────────────────────────────────── */
 .cal-recipe-actions {
