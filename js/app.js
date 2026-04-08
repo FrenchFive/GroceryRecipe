@@ -1265,6 +1265,7 @@ function renderPlanner() {
         ${recipeVisual(recipe, 'cal-card-emoji')}
         <div class="cal-card-info">
           <span class="cal-card-name" data-rid="${recipeId}">${escHtml(recipe.name)}</span>
+          <span class="cal-card-meta">${servings} serving${servings !== 1 ? 's' : ''}</span>
         </div>
         <div class="cal-inline-servings">
           <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="-1" aria-label="Decrease servings">${icon('minus', 12)}</button>
@@ -1424,7 +1425,14 @@ function renderPlanner() {
       const newServings = slot.servings + parseInt(dir, 10);
       if (newServings < 1) return;
       PlanDB.setServings(slotWk, slotDay, slotMeal, rid, newServings);
-      renderPlanner();
+      // Update in-place instead of re-rendering to preserve editing state
+      const card = btn.closest('.cal-card-recipe');
+      if (card) {
+        const valEl = card.querySelector('.cal-srv-val');
+        if (valEl) valEl.textContent = newServings;
+        const metaEl = card.querySelector('.cal-card-meta');
+        if (metaEl) metaEl.textContent = `${newServings} serving${newServings !== 1 ? 's' : ''}`;
+      }
     });
   });
 

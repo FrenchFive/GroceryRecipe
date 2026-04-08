@@ -1218,7 +1218,8 @@ img.emoji.recipe-photo {
   transform: translateX(-50%);
 }
 .cal-strip-day.selected .cal-strip-meals {
-  background: #fff;
+  background: var(--green-bg);
+  border: 1px solid rgba(255,255,255,.6);
 }
 .cal-strip-dot {
   width: 6px;
@@ -1231,7 +1232,7 @@ img.emoji.recipe-photo {
 }
 
 /* ── Day detail panel ────────────────────────────────────── */
-.cal-day-detail { padding-bottom: 24px; }
+.cal-day-detail { padding-bottom: 24px; min-height: calc(100vh - 200px); }
 
 .cal-detail-heading {
   display: flex;
