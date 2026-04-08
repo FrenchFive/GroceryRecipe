@@ -569,7 +569,7 @@ const ACCENT_COLORS = {
 
 /* ── User preferences ───────────────────────────────────── */
 const PREF_DEFAULTS = {
-  defaultServings: 2,
+  defaultServings: 1,
   accentColor: 'blue',
   shoppingDay: 0,          // 0=Monday … 6=Sunday (which day the shopping week starts)
   shoppingReminder: false  // Send a notification on shopping day
