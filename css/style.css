@@ -167,7 +167,6 @@ html, body {
   box-shadow: var(--shadow);
   padding: 14px 16px;
   margin-bottom: 14px;
-  overflow: hidden;
 }
 
 /* ── Search bar ──────────────────────────────────────────── */
@@ -524,12 +523,13 @@ img.emoji.recipe-photo {
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 20;
+  z-index: 100;
   background: var(--card-bg);
   border: 2px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow-y: auto;
+  max-height: 200px;
   margin-top: 2px;
 }
 .ing-ac.open { display: block; }
@@ -1262,7 +1262,6 @@ img.emoji.recipe-photo {
   background: var(--card-bg);
   border: var(--border-w) solid var(--border);
   box-shadow: var(--shadow);
-  overflow: hidden;
 }
 
 .cal-meal-card-hd {
@@ -1436,13 +1435,12 @@ img.cal-card-emoji {
   position: absolute;
   right: 0;
   top: 100%;
-  z-index: 50;
+  z-index: 100;
   background: var(--card-bg);
   border: 2px solid var(--border);
   box-shadow: var(--shadow);
   border-radius: var(--radius);
   min-width: 130px;
-  overflow: hidden;
 }
 .cal-more-menu.open { display: block; }
 .cal-more-option {
