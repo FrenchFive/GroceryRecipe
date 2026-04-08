@@ -1991,7 +1991,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
     const CapApp = window.Capacitor.Plugins.App;
     CapApp.addListener('backButton', () => {
-      // Close any open bottom sheet / picker first
+      // Close any open bottom sheet / picker / popup first
       const optPicker = document.getElementById('option-picker');
       if (optPicker && optPicker.classList.contains('open')) { closeOptionPicker(); return; }
       const unitPicker = document.getElementById('unit-picker');
@@ -2000,6 +2000,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (mealPicker && mealPicker.classList.contains('open')) { closeMealPicker(); return; }
       const shopPicker = document.getElementById('shop-add-picker');
       if (shopPicker && shopPicker.classList.contains('open')) { closeShopAddPicker(); return; }
+      const openMenus = document.querySelectorAll('.cal-more-menu.open');
+      if (openMenus.length) { openMenus.forEach(m => m.classList.remove('open')); return; }
+      const openAc = document.querySelectorAll('.ing-ac.open');
+      if (openAc.length) { openAc.forEach(d => d.classList.remove('open')); return; }
 
       const prevPage = navHistory.pop();
       if (prevPage) {
@@ -2016,7 +2020,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle browser back button (PWA / non-Capacitor fallback)
   window.addEventListener('popstate', () => {
-    // Close any open bottom sheet / picker first
+    // Close any open bottom sheet / picker / popup first
     const optPicker = document.getElementById('option-picker');
     if (optPicker && optPicker.classList.contains('open')) { closeOptionPicker(); history.pushState(null, '', ''); return; }
     const unitPicker = document.getElementById('unit-picker');
@@ -2025,6 +2029,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mealPicker && mealPicker.classList.contains('open')) { closeMealPicker(); history.pushState(null, '', ''); return; }
     const shopPicker = document.getElementById('shop-add-picker');
     if (shopPicker && shopPicker.classList.contains('open')) { closeShopAddPicker(); history.pushState(null, '', ''); return; }
+    const openMenus = document.querySelectorAll('.cal-more-menu.open');
+    if (openMenus.length) { openMenus.forEach(m => m.classList.remove('open')); history.pushState(null, '', ''); return; }
+    const openAc = document.querySelectorAll('.ing-ac.open');
+    if (openAc.length) { openAc.forEach(d => d.classList.remove('open')); history.pushState(null, '', ''); return; }
 
     const prevPage = navHistory.pop();
     if (prevPage) {
