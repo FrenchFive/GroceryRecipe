@@ -207,6 +207,18 @@ function mergeQtyUnits(items) {
   return parts.join(' + ');
 }
 
+/* ── Recipe categories ──────────────────────────────────── */
+const RECIPE_CATEGORIES = [
+  { value: '',           label: 'None' },
+  { value: 'starter',    label: 'Starter' },
+  { value: 'main',       label: 'Main' },
+  { value: 'side',       label: 'Side' },
+  { value: 'dessert',    label: 'Dessert' },
+  { value: 'snack',      label: 'Snack' },
+  { value: 'breakfast',  label: 'Breakfast' },
+  { value: 'drink',      label: 'Drink' },
+];
+
 /* ── Recipes ─────────────────────────────────────────────── */
 const RecipeDB = {
   all() { return load(DB_RECIPES, []); },
@@ -216,12 +228,17 @@ const RecipeDB = {
   save(recipe) {
     const list = this.all();
     const idx  = list.findIndex(r => r.id === recipe.id);
-    if (idx >= 0) { list[idx] = recipe; }
-    else {
+    if (idx < 0) {
       recipe.id        = uid();
       recipe.createdAt = Date.now();
-      list.push(recipe);
     }
+    // Ensure new fields have defaults
+    if (recipe.starred === undefined) recipe.starred = false;
+    if (!Array.isArray(recipe.tags)) recipe.tags = [];
+    if (recipe.category === undefined) recipe.category = '';
+
+    if (idx >= 0) { list[idx] = recipe; }
+    else { list.push(recipe); }
     save(DB_RECIPES, list);
     return recipe;
   },
@@ -230,10 +247,41 @@ const RecipeDB = {
     save(DB_RECIPES, this.all().filter(r => r.id !== id));
   },
 
+  toggleStar(id) {
+    const list = this.all();
+    const r = list.find(r => r.id === id);
+    if (r) { r.starred = !r.starred; save(DB_RECIPES, list); }
+    return r;
+  },
+
+  /** Search by name, tags, and category. */
   search(q) {
     const term = q.trim().toLowerCase();
     if (!term) return this.all();
-    return this.all().filter(r => r.name.toLowerCase().includes(term));
+    return this.all().filter(r => {
+      if (r.name.toLowerCase().includes(term)) return true;
+      if (r.category && r.category.toLowerCase().includes(term)) return true;
+      if (Array.isArray(r.tags) && r.tags.some(t => t.toLowerCase().includes(term))) return true;
+      return false;
+    });
+  },
+
+  /** Count how many times a recipe appears in all plans. */
+  planCount(id) {
+    const data = load(DB_PLAN, {});
+    let count = 0;
+    for (const wk in data) {
+      for (const day of DAYS) {
+        if (!data[wk]?.[day]) continue;
+        for (const meal of MEALS) {
+          const slots = data[wk][day][meal];
+          if (Array.isArray(slots)) {
+            count += slots.filter(s => (typeof s === 'object' ? s.recipeId : s) === id).length;
+          }
+        }
+      }
+    }
+    return count;
   },
 
   /** Return unique ingredients {name, unit} across all recipes (sorted by name).
@@ -247,6 +295,15 @@ const RecipeDB = {
       });
     });
     return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  },
+
+  /** Return all unique tags across recipes. */
+  allTags() {
+    const set = new Set();
+    this.all().forEach(r => {
+      if (Array.isArray(r.tags)) r.tags.forEach(t => set.add(t));
+    });
+    return [...set].sort();
   }
 };
 
@@ -541,6 +598,8 @@ function seedIfEmpty() {
       name: 'Spaghetti Bolognese',
       emoji: '🍝',
       servings: 4,
+      category: 'main',
+      tags: ['pasta', 'italian'],
       ingredients: [
         { name: 'Spaghetti',        qty: '400', unit: 'g' },
         { name: 'Ground beef',       qty: '500', unit: 'g' },
@@ -563,6 +622,8 @@ function seedIfEmpty() {
       name: 'Caesar Salad',
       emoji: '🥗',
       servings: 2,
+      category: 'starter',
+      tags: ['salad', 'quick'],
       ingredients: [
         { name: 'Romaine lettuce', qty: '1',   unit: 'head' },
         { name: 'Parmesan',       qty: '50',  unit: 'g' },
@@ -581,6 +642,8 @@ function seedIfEmpty() {
       name: 'Pancakes',
       emoji: '🥞',
       servings: 2,
+      category: 'breakfast',
+      tags: ['sweet', 'quick'],
       ingredients: [
         { name: 'Flour',          qty: '150', unit: 'g' },
         { name: 'Milk',           qty: '200', unit: 'ml' },

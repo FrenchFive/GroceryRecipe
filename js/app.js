@@ -17,12 +17,17 @@ const ICON_SVG = {
   'clipboard-copy': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M16 4h2a2 2 0 0 1 2 2v4"/><path d="M21 14H11"/><path d="m15 10-4 4 4 4"/>',
   'cooking-pot': '<path d="M2 12h20"/><path d="M20 12v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8"/><path d="m4 8 16-4"/><path d="m8.86 6.78-.45-1.81a2 2 0 0 1 1.45-2.43l1.94-.48a2 2 0 0 1 2.43 1.46l.45 1.8"/>',
   'list-plus': '<path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/>',
+  'arrow-up-down': '<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
+  'filter': '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
   'minus': '<path d="M5 12h14"/>',
+  'more-vertical': '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
   'moon': '<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>',
   'pencil': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
   'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
   'repeat': '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
   'save': '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+  'star': '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  'tag': '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
   'search': '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
   'share-2': '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
   'shopping-cart': '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
@@ -48,6 +53,9 @@ let plannerWeekOffset    = 0;      // 0 = current week, ±n = n weeks offset
 let plannerSelectedDayIdx = null;  // null = auto-select today/Mon, 0-6 = explicit selection
 let shoppingView         = 'current'; // 'current' | 'next'
 let pickerCtx            = null;   // { wk, day, meal } for the meal picker
+let recipeSortMode       = 'default';  // 'default' | 'alpha' | 'newest' | 'oldest' | 'most-planned' | 'least-planned'
+let recipeCategoryFilter = '';         // '' = all, or a category value
+let plannerSearchQuery   = '';         // search filter in planner meal picker
 
 /* ── Planner week helpers ────────────────────────────────── */
 function getPlannerWk() {
@@ -107,7 +115,7 @@ function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
-  const pageEl = document.getElementById('page-' + page);
+  const pageEl = document.getElementById('page-' + (page === 'edit' ? 'add' : page));
   if (pageEl) pageEl.classList.add('active');
 
   const navBtn = document.querySelector(`.nav-btn[data-page="${page}"]`);
@@ -138,7 +146,7 @@ function navigate(page) {
   // show/hide back & add buttons
   const inDetail = page === 'detail' || page === 'add' || page === 'edit';
   document.getElementById('back-btn').style.display = inDetail ? 'flex' : 'none';
-  document.getElementById('btn-add-recipe').style.display = (inDetail || page === 'profile') ? 'none' : 'flex';
+  document.getElementById('btn-add-recipe').style.display = (inDetail || page === 'profile' || page === 'planner') ? 'none' : 'flex';
   document.getElementById('bottom-nav').style.display = inDetail ? 'none' : 'flex';
 
   // Render the page content
@@ -173,30 +181,108 @@ function recipeVisual(r, cls) {
 }
 
 /* ── Recipes page ────────────────────────────────────────── */
+function sortRecipes(list) {
+  // Starred always float to top, then apply sort
+  const starred = list.filter(r => r.starred);
+  const rest = list.filter(r => !r.starred);
+  function applySortTo(arr) {
+    switch (recipeSortMode) {
+      case 'alpha':         return arr.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+      case 'newest':        return arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      case 'oldest':        return arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      case 'most-planned':  return arr.sort((a, b) => RecipeDB.planCount(b.id) - RecipeDB.planCount(a.id));
+      case 'least-planned': return arr.sort((a, b) => RecipeDB.planCount(a.id) - RecipeDB.planCount(b.id));
+      default:              return arr; // insertion order
+    }
+  }
+  return [...applySortTo(starred), ...applySortTo(rest)];
+}
+
 function renderRecipes(filter = '') {
-  const list = RecipeDB.search(filter);
+  let list = RecipeDB.search(filter);
+  // Apply category filter
+  if (recipeCategoryFilter) {
+    list = list.filter(r => (r.category || '') === recipeCategoryFilter);
+  }
+  list = sortRecipes(list);
+
   const container = document.getElementById('recipe-list');
 
+  // Sort & filter controls
+  const categories = RECIPE_CATEGORIES;
+  const sortOptions = [
+    { value: 'default',       label: 'Default' },
+    { value: 'alpha',         label: 'A → Z' },
+    { value: 'newest',        label: 'Newest' },
+    { value: 'oldest',        label: 'Oldest' },
+    { value: 'most-planned',  label: 'Most Planned' },
+    { value: 'least-planned', label: 'Least Planned' },
+  ];
+
+  const controlsHtml = `<div class="recipe-controls">
+    <div class="recipe-ctrl-group">
+      <label>${icon('arrow-up-down', 14)}</label>
+      <select id="recipe-sort" class="recipe-ctrl-select">
+        ${sortOptions.map(o => `<option value="${o.value}" ${recipeSortMode === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="recipe-ctrl-group">
+      <label>${icon('filter', 14)}</label>
+      <select id="recipe-cat-filter" class="recipe-ctrl-select">
+        <option value="">All</option>
+        ${categories.filter(c => c.value).map(c => `<option value="${c.value}" ${recipeCategoryFilter === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
+      </select>
+    </div>
+  </div>`;
+
   if (list.length === 0) {
-    container.innerHTML = `
+    container.innerHTML = controlsHtml + `
       <div class="empty-state">
         <div class="empty-icon">${icon('cooking-pot', 48)}</div>
-        <p>${filter ? 'No recipes match your search.' : 'No recipes yet. Tap + to add one!'}</p>
+        <p>${filter || recipeCategoryFilter ? 'No recipes match your search.' : 'No recipes yet. Tap + to add one!'}</p>
       </div>`;
-    return;
+  } else {
+    container.innerHTML = controlsHtml + list.map(r => {
+      const catLabel = r.category ? (RECIPE_CATEGORIES.find(c => c.value === r.category)?.label || '') : '';
+      const tagsHtml = (r.tags || []).map(t => `<span class="recipe-tag-chip">${escHtml(t)}</span>`).join('');
+      const metaParts = [`${r.ingredients.length} ing`, `serves ${r.servings}`];
+      if (catLabel) metaParts.push(catLabel);
+      return `
+        <div class="recipe-item" data-id="${r.id}" role="button" tabindex="0">
+          <button class="recipe-star-btn${r.starred ? ' starred' : ''}" data-id="${r.id}" aria-label="${r.starred ? 'Unstar' : 'Star'}">${icon('star', 18)}</button>
+          ${recipeVisual(r, 'recipe-emoji')}
+          <div class="recipe-info">
+            <h3>${escHtml(r.name)}</h3>
+            <p>${metaParts.join(' · ')}${tagsHtml ? ' ' + tagsHtml : ''}</p>
+          </div>
+          <span class="recipe-arrow">${icon('chevron-right', 18)}</span>
+        </div>`;
+    }).join('');
   }
 
-  container.innerHTML = list.map(r => `
-    <div class="recipe-item" data-id="${r.id}" role="button" tabindex="0">
-      ${recipeVisual(r, 'recipe-emoji')}
-      <div class="recipe-info">
-        <h3>${escHtml(r.name)}</h3>
-        <p>${r.ingredients.length} ingredients &bull; serves ${r.servings}</p>
-      </div>
-      <span class="recipe-arrow">${icon('chevron-right', 18)}</span>
-    </div>
-  `).join('');
+  // Wire sort & filter
+  const sortSel = document.getElementById('recipe-sort');
+  const catSel = document.getElementById('recipe-cat-filter');
+  if (sortSel) sortSel.addEventListener('change', () => {
+    recipeSortMode = sortSel.value;
+    renderRecipes(document.getElementById('recipe-search').value);
+  });
+  if (catSel) catSel.addEventListener('change', () => {
+    recipeCategoryFilter = catSel.value;
+    renderRecipes(document.getElementById('recipe-search').value);
+  });
 
+  // Wire star buttons
+  container.querySelectorAll('.recipe-star-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      hapticTap();
+      RecipeDB.toggleStar(btn.dataset.id);
+      renderRecipes(document.getElementById('recipe-search').value);
+    });
+  });
+
+  // Wire recipe item clicks
   container.querySelectorAll('.recipe-item').forEach(el => {
     el.addEventListener('click', () => openDetail(el.dataset.id));
     el.addEventListener('keydown', e => { if (e.key === 'Enter') openDetail(el.dataset.id); });
@@ -219,7 +305,8 @@ function renderDetail(id) {
     <div class="detail-header">
       ${r.photo ? `<img class="emoji recipe-photo" src="${r.photo}" alt="">` : `<div class="emoji">${r.emoji || '🍽'}</div>`}
       <h2>${escHtml(r.name)}</h2>
-      <p>Base: ${r.servings} serving${r.servings > 1 ? 's' : ''}</p>
+      <p>Base: ${r.servings} serving${r.servings > 1 ? 's' : ''}${r.category ? ' · ' + escHtml(RECIPE_CATEGORIES.find(c => c.value === r.category)?.label || r.category) : ''}</p>
+      ${(r.tags || []).length ? `<div class="detail-tags">${r.tags.map(t => `<span class="recipe-tag-chip">${escHtml(t)}</span>`).join('')}</div>` : ''}
     </div>
 
     <!-- Servings selector -->
@@ -265,7 +352,8 @@ function renderDetail(id) {
     ingList.innerHTML = r.ingredients.map(ing => {
       const qty = parseFloat(ing.qty);
       const scaledQty = isNaN(qty) ? ing.qty : String(Math.round(qty * mult * 100) / 100);
-      return `<li><span>${escHtml(ing.name)}</span>
+      const optBadge = ing.optional ? '<span class="optional-badge">optional</span>' : '';
+      return `<li class="${ing.optional ? 'optional-ing' : ''}"><span>${escHtml(ing.name)} ${optBadge}</span>
                   <span class="ingredient-qty">${scaledQty} ${escHtml(ing.unit)}</span></li>`;
     }).join('');
   }
@@ -342,6 +430,21 @@ function renderAddForm(editId) {
           <label>Base Servings *</label>
           <input type="number" id="f-servings" min="1" value="${r ? r.servings : PrefsDB.get('defaultServings')}" required>
         </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="f-category" class="recipe-ctrl-select" style="width:100%;padding:10px 14px;font-size:.95rem;">
+            ${RECIPE_CATEGORIES.map(c => `<option value="${c.value}" ${(r?.category || '') === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tags</label>
+          <div class="tags-input-wrap">
+            <div class="tags-chips" id="f-tags-chips">
+              ${(r?.tags || []).map(t => `<span class="tag-chip">${escHtml(t)} <button type="button" class="tag-chip-x" data-tag="${escHtml(t)}">&times;</button></span>`).join('')}
+            </div>
+            <input type="text" id="f-tags-input" placeholder="Type a tag and press Enter">
+          </div>
+        </div>
       </div>
 
       <!-- Ingredients -->
@@ -350,7 +453,7 @@ function renderAddForm(editId) {
         <div class="ingredient-header">
           <span>Name</span>
           <span>Qty</span>
-          <span class="ing-unit-hdr">Unit</span>
+          <span>Unit</span>
           <span></span>
         </div>
         <div id="ing-rows"></div>
@@ -376,21 +479,54 @@ function renderAddForm(editId) {
   // Ingredient autocomplete data: [{name, unit}]
   const knownIngredients = RecipeDB.allIngredientsWithUnits();
 
-  // Build unit <select> options HTML (grouped by category)
-  const unitOptHtml = (() => {
-    const cats = [
-      { label: 'Count',  units: UNIT_OPTIONS.filter(u => u.category === 'count') },
-      { label: 'Mass',   units: UNIT_OPTIONS.filter(u => u.category === 'mass') },
-      { label: 'Volume', units: UNIT_OPTIONS.filter(u => u.category === 'volume') },
-      { label: 'Spoon',  units: UNIT_OPTIONS.filter(u => u.category === 'spoon') },
-      { label: 'Other',  units: UNIT_OPTIONS.filter(u => u.category === 'other') },
-    ];
-    return cats.map(c =>
-      `<optgroup label="${c.label}">${c.units.map(u =>
-        `<option value="${escHtml(u.value)}">${escHtml(u.label)}</option>`
-      ).join('')}</optgroup>`
-    ).join('');
-  })();
+  // Unit data grouped by category (for custom picker)
+  const unitCategories = [
+    { label: 'Count',  units: UNIT_OPTIONS.filter(u => u.category === 'count') },
+    { label: 'Mass',   units: UNIT_OPTIONS.filter(u => u.category === 'mass') },
+    { label: 'Volume', units: UNIT_OPTIONS.filter(u => u.category === 'volume') },
+    { label: 'Spoon',  units: UNIT_OPTIONS.filter(u => u.category === 'spoon') },
+    { label: 'Other',  units: UNIT_OPTIONS.filter(u => u.category === 'other') },
+  ];
+
+  /** Currently-open unit picker target (the row's hidden input + display btn) */
+  let activeUnitTarget = null;
+
+  function openUnitPicker(hiddenInput, displayBtn) {
+    activeUnitTarget = { hiddenInput, displayBtn };
+    const picker = document.getElementById('unit-picker');
+    const list   = document.getElementById('unit-picker-list');
+    const currentVal = hiddenInput.value;
+
+    list.innerHTML = unitCategories.map(cat => `
+      <div class="unit-picker-cat">${escHtml(cat.label)}</div>
+      <div class="unit-picker-group">
+        ${cat.units.map(u => `
+          <button type="button" class="unit-picker-item${u.value === currentVal ? ' selected' : ''}" data-val="${escHtml(u.value)}">
+            ${escHtml(u.label)}
+          </button>
+        `).join('')}
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.unit-picker-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.dataset.val;
+        if (activeUnitTarget) {
+          activeUnitTarget.hiddenInput.value = val;
+          activeUnitTarget.displayBtn.textContent = UNIT_OPTIONS.find(u => u.value === val)?.label || 'unit';
+        }
+        closeUnitPicker();
+      });
+    });
+
+    picker.classList.add('open');
+    document.getElementById('unit-picker-backdrop').addEventListener('click', closeUnitPicker, { once: true });
+  }
+
+  function closeUnitPicker() {
+    document.getElementById('unit-picker').classList.remove('open');
+    activeUnitTarget = null;
+  }
 
   /** Debounce helper */
   function debounce(fn, ms) {
@@ -421,9 +557,10 @@ function renderAddForm(editId) {
         item.addEventListener('mousedown', e => {
           e.preventDefault();
           nameInput.value = match.name;
-          const sel = row.querySelector('.ing-unit');
-          const opt = [...sel.options].find(o => o.value === (match.unit || ''));
-          if (opt) sel.value = opt.value;
+          const hiddenUnit = row.querySelector('.ing-unit');
+          const unitBtn = row.querySelector('.ing-unit-btn');
+          if (hiddenUnit) hiddenUnit.value = match.unit || '';
+          if (unitBtn) unitBtn.textContent = UNIT_OPTIONS.find(u => u.value === (match.unit || ''))?.label || match.unit || 'unit';
           dropdown.classList.remove('open');
         });
         dropdown.appendChild(item);
@@ -441,35 +578,31 @@ function renderAddForm(editId) {
     });
   }
 
-  function addIngRow(name = '', qty = '', unit = '', focus = false) {
+  function addIngRow(name = '', qty = '', unit = '', focus = false, optional = false) {
+    const unitLabel = UNIT_OPTIONS.find(u => u.value === (unit || ''))?.label || unit || 'unit';
     const div = document.createElement('div');
-    div.className = 'ingredient-row';
+    div.className = 'ingredient-row-wrap';
     div.innerHTML = `
-      <div class="ing-name-wrap">
-        <input type="text" class="ing-name" placeholder="Flour" value="${escHtml(name)}" autocomplete="off">
-        <div class="ing-ac"></div>
+      <div class="ingredient-row">
+        <div class="ing-name-wrap">
+          <input type="text" class="ing-name" placeholder="Flour" value="${escHtml(name)}" autocomplete="off">
+          <div class="ing-ac"></div>
+        </div>
+        <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
+        <input type="hidden" class="ing-unit" value="${escHtml(unit)}">
+        <button type="button" class="ing-unit-btn" aria-label="Select unit">${escHtml(unitLabel)}</button>
+        <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
       </div>
-      <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
-      <div class="unit-ctrl">
-        <button type="button" class="unit-mag-btn unit-down" aria-label="Smaller unit">${icon('minus', 12)}</button>
-        <select class="ing-unit">${unitOptHtml}</select>
-        <button type="button" class="unit-mag-btn unit-up" aria-label="Larger unit">${icon('plus', 12)}</button>
-      </div>
-      <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
+      <label class="ing-optional-label">
+        <input type="checkbox" class="ing-optional" ${optional ? 'checked' : ''}> Optional (pantry item)
+      </label>
     `;
-    // Set selected unit
-    const sel = div.querySelector('.ing-unit');
-    const matchOpt = [...sel.options].find(o => o.value === (unit || ''));
-    if (matchOpt) matchOpt.selected = true;
-    else if (unit) {
-      const opt = document.createElement('option');
-      opt.value = unit; opt.textContent = unit; opt.selected = true;
-      sel.appendChild(opt);
-    }
 
-    // Magnitude +/- : cycle to next/prev unit in same category & adjust qty
-    div.querySelector('.unit-up').addEventListener('click', () => shiftUnit(div, 1));
-    div.querySelector('.unit-down').addEventListener('click', () => shiftUnit(div, -1));
+    // Wire custom unit picker button
+    const hiddenInput = div.querySelector('.ing-unit');
+    const unitBtn = div.querySelector('.ing-unit-btn');
+    unitBtn.addEventListener('click', () => openUnitPicker(hiddenInput, unitBtn));
+
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
 
     // Autocomplete
@@ -481,30 +614,6 @@ function renderAddForm(editId) {
       const nameInput = div.querySelector('.ing-name');
       setTimeout(() => nameInput.focus(), 0);
     }
-  }
-
-  function shiftUnit(row, dir) {
-    const sel     = row.querySelector('.ing-unit');
-    const qtyEl   = row.querySelector('.ing-qty');
-    const curUnit = sel.value;
-    const cat     = getUnitCategory(curUnit);
-    const order   = UNIT_ORDER[cat];
-    const conv    = UNIT_CONVERSIONS[cat];
-    if (!order || !conv) return;
-
-    const idx = order.indexOf(curUnit);
-    if (idx < 0) return;
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= order.length) return;
-
-    const newUnit = order[newIdx];
-    const curQty  = parseFloat(qtyEl.value);
-    if (!isNaN(curQty)) {
-      const base   = curQty * conv[curUnit];
-      const newQty = Math.round((base / conv[newUnit]) * 1000) / 1000;
-      qtyEl.value  = newQty;
-    }
-    sel.value = newUnit;
   }
 
   function addStepRow(text = '') {
@@ -520,10 +629,10 @@ function renderAddForm(editId) {
 
   // Pre-fill existing data
   if (r) {
-    r.ingredients.forEach(i => addIngRow(i.name, i.qty, i.unit));
+    r.ingredients.forEach(i => addIngRow(i.name, i.qty, i.unit, false, !!i.optional));
     r.steps.forEach(s => addStepRow(s));
   } else {
-    addIngRow(); addIngRow();
+    addIngRow();
     addStepRow();
   }
 
@@ -586,16 +695,53 @@ function renderAddForm(editId) {
     clearBtn.style.display = 'none';
   });
 
+  // Tags input logic
+  const pendingTags = r && Array.isArray(r.tags) ? [...r.tags] : [];
+  const tagsChips = document.getElementById('f-tags-chips');
+  const tagsInput = document.getElementById('f-tags-input');
+
+  function renderTagsChips() {
+    tagsChips.innerHTML = pendingTags.map(t =>
+      `<span class="tag-chip">${escHtml(t)} <button type="button" class="tag-chip-x" data-tag="${escHtml(t)}">&times;</button></span>`
+    ).join('');
+    tagsChips.querySelectorAll('.tag-chip-x').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        const idx = pendingTags.indexOf(btn.dataset.tag);
+        if (idx >= 0) pendingTags.splice(idx, 1);
+        renderTagsChips();
+      });
+    });
+  }
+  renderTagsChips();
+
+  tagsInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const tag = tagsInput.value.trim().replace(/,/g, '');
+      if (tag && !pendingTags.includes(tag)) {
+        pendingTags.push(tag);
+        renderTagsChips();
+      }
+      tagsInput.value = '';
+    }
+  });
+
   document.getElementById('recipe-form').addEventListener('submit', e => {
     e.preventDefault();
     const name = document.getElementById('f-name').value.trim();
     if (!name) { showToast('Please enter a recipe name'); return; }
 
-    const ingredients = [...ingContainer.querySelectorAll('.ingredient-row')]
-      .map(row => ({
-        name: row.querySelector('.ing-name').value.trim(),
-        qty:  row.querySelector('.ing-qty').value.trim(),
-        unit: row.querySelector('.ing-unit').value.trim()
+    // Capture any tag still in the input
+    const trailingTag = tagsInput.value.trim().replace(/,/g, '');
+    if (trailingTag && !pendingTags.includes(trailingTag)) pendingTags.push(trailingTag);
+
+    const ingredients = [...ingContainer.querySelectorAll('.ingredient-row-wrap')]
+      .map(wrap => ({
+        name: wrap.querySelector('.ing-name').value.trim(),
+        qty:  wrap.querySelector('.ing-qty').value.trim(),
+        unit: wrap.querySelector('.ing-unit').value.trim(),
+        optional: wrap.querySelector('.ing-optional')?.checked || false
       }))
       .filter(i => i.name);
 
@@ -610,6 +756,8 @@ function renderAddForm(editId) {
       emoji:     usePhoto ? '' : (document.getElementById('f-emoji').value.trim() || '🍽'),
       photo:     usePhoto ? pendingPhoto : null,
       servings:  Math.max(1, parseInt(document.getElementById('f-servings').value) || 1),
+      category:  document.getElementById('f-category').value,
+      tags:      [...pendingTags],
       ingredients,
       steps
     };
@@ -642,8 +790,10 @@ function ingredientsForPlannerWeek(wk) {
             const prev = parseFloat(ingMap[k].qty), add = parseFloat(scaledQty);
             if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
             if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
+            // If any recipe marks it as required, it's required
+            if (!ing.optional) ingMap[k].optional = false;
           } else {
-            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, sources: [recipe.name] };
+            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, optional: !!ing.optional, sources: [recipe.name] };
           }
         });
       });
@@ -678,8 +828,9 @@ function ingredientsForShopWeek(swk) {
             const prev = parseFloat(ingMap[k].qty), add = parseFloat(scaledQty);
             if (!isNaN(prev) && !isNaN(add)) ingMap[k].qty = String(Math.round((prev + add) * 100) / 100);
             if (!ingMap[k].sources.includes(recipe.name)) ingMap[k].sources.push(recipe.name);
+            if (!ing.optional) ingMap[k].optional = false;
           } else {
-            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, sources: [recipe.name] };
+            ingMap[k] = { name: ing.name, qty: scaledQty, unit: ing.unit, optional: !!ing.optional, sources: [recipe.name] };
           }
         });
       });
@@ -787,27 +938,16 @@ function renderShoppingWeek(page, tabs, weekOffset) {
   const recurringCheckedKey = `shop_recurring_checked_${swk}`;
   const recurringCheckedSet = new Set(JSON.parse(localStorage.getItem(recurringCheckedKey) || '[]'));
 
-  // --- Add item form ---
-  const addForm = `
-    <div class="card shop-add-form">
-      <div class="shop-add-row">
-        <input type="text" id="shop-add-name" placeholder="Add an item…" class="shop-add-input" aria-label="Item name">
-        <input type="text" id="shop-add-qty" placeholder="Qty" class="shop-add-qty" aria-label="Quantity">
-        <input type="text" id="shop-add-unit" placeholder="Unit" class="shop-add-unit" aria-label="Unit">
-        <button class="btn-icon shop-add-btn" id="shop-add-btn" aria-label="Add item">${icon('plus', 18)}</button>
-      </div>
-      <div class="shop-add-options">
-        <label class="shop-recurring-toggle">
-          <input type="checkbox" id="shop-add-recurring"> ${icon('repeat', 14)} Recurring (every week)
-        </label>
-      </div>
-    </div>`;
+  // Add item form is now in the header + popup (shop-add-picker)
 
-  // --- Recipe-based items ---
+  // --- Recipe-based items (split into required and optional) ---
+  const requiredItems = items.filter(i => !i.optional);
+  const optionalItems = items.filter(i => i.optional);
+
   let recipeSection = '';
-  if (items.length > 0) {
-    const unchecked = items.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
-    const checked   = items.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+  if (requiredItems.length > 0) {
+    const unchecked = requiredItems.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+    const checked   = requiredItems.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
 
     function recipeItemHtml(i) {
       const key = i.name.toLowerCase() + '\u0000' + i.unit;
@@ -829,6 +969,39 @@ function renderShoppingWeek(page, tabs, weekOffset) {
         ${unchecked.map(recipeItemHtml).join('')}
         ${checked.length && unchecked.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
         ${checked.map(recipeItemHtml).join('')}
+      </div>`;
+  }
+
+  // --- Optional / pantry items from recipes ---
+  let optionalSection = '';
+  if (optionalItems.length > 0) {
+    const uncheckedO = optionalItems.filter(i => !checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+    const checkedO   = optionalItems.filter(i =>  checkedSet.has(i.name.toLowerCase() + '\u0000' + i.unit));
+
+    function optionalItemHtml(i) {
+      const key = i.name.toLowerCase() + '\u0000' + i.unit;
+      const isChecked = checkedSet.has(key);
+      const safeKey = btoa(encodeURIComponent(key));
+      return `<div class="shop-item${isChecked ? ' checked' : ''}" data-key="${safeKey}" data-type="recipe">
+        <input type="checkbox" id="chk-${safeKey}" ${isChecked ? 'checked' : ''} aria-label="${escHtml(i.name)}">
+        <label for="chk-${safeKey}">
+          ${escHtml(i.name)}
+          <span class="shop-source">${i.sources.map(escHtml).join(', ')}</span>
+        </label>
+        <span class="shop-qty">${escHtml(i.qty)} ${escHtml(i.unit)}</span>
+      </div>`;
+    }
+
+    optionalSection = `
+      <div class="shop-optional-header" id="shop-optional-toggle">
+        <span class="shop-section-title" style="margin-bottom:0">${icon('chef-hat', 14)} Pantry / Optional</span>
+        <span class="shop-optional-count">${uncheckedO.length} item${uncheckedO.length !== 1 ? 's' : ''}</span>
+        <span class="shop-optional-arrow">${icon('chevron-right', 14)}</span>
+      </div>
+      <div class="card shop-optional-list" id="shop-optional-list" style="display:none;">
+        ${uncheckedO.map(optionalItemHtml).join('')}
+        ${checkedO.length && uncheckedO.length ? '<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">' : ''}
+        ${checkedO.map(optionalItemHtml).join('')}
       </div>`;
   }
 
@@ -892,7 +1065,7 @@ function renderShoppingWeek(page, tabs, weekOffset) {
   const totalItems = items.length + recurringItems.length + customItems.length;
   const emptyState = totalItems === 0 ? `<div class="empty-state">
     <div class="empty-icon">${icon('shopping-cart', 48)}</div>
-    <p>Your shopping list is empty.<br>Add items above or plan meals in the Planner!</p>
+    <p>Your shopping list is empty.<br>Tap + to add items or plan meals in the Planner!</p>
   </div>` : '';
 
   // --- Share / Export buttons ---
@@ -904,31 +1077,20 @@ function renderShoppingWeek(page, tabs, weekOffset) {
 
   const weekLabel = `<div class="shop-week-label">${icon('calendar-days', 14)} ${escHtml(label)}</div>`;
 
-  page.innerHTML = tabs + addForm + weekLabel + recipeSection + recurringSection + customSection + emptyState + shareButtons;
+  page.innerHTML = tabs + weekLabel + recipeSection + optionalSection + recurringSection + customSection + emptyState + shareButtons;
 
-  // --- Wire add form ---
-  const addBtn = document.getElementById('shop-add-btn');
-  const addName = document.getElementById('shop-add-name');
-  const addQty = document.getElementById('shop-add-qty');
-  const addUnit = document.getElementById('shop-add-unit');
-  const addRecurring = document.getElementById('shop-add-recurring');
-
-  function doAdd() {
-    const name = addName.value.trim();
-    if (!name) return;
-    if (addRecurring.checked) {
-      RecurringDB.add(name, addQty.value.trim(), addUnit.value.trim());
-      showToast('Recurring item added');
-    } else {
-      CustomItemsDB.add(name, addQty.value.trim(), addUnit.value.trim());
-      showToast('Item added');
-    }
-    renderShopping();
-    updateShoppingBadge();
+  // Wire optional section toggle
+  const optToggle = document.getElementById('shop-optional-toggle');
+  const optList = document.getElementById('shop-optional-list');
+  if (optToggle && optList) {
+    optToggle.addEventListener('click', () => {
+      const open = optList.style.display !== 'none';
+      optList.style.display = open ? 'none' : 'block';
+      optToggle.classList.toggle('open', !open);
+    });
   }
 
-  addBtn.addEventListener('click', doAdd);
-  addName.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
+  // Add form wiring is handled by the shop-add-picker popup (see boot section)
 
   // --- Wire recipe item checkboxes ---
   page.querySelectorAll('.shop-item[data-type="recipe"] input[type=checkbox]').forEach(chk => {
@@ -1048,12 +1210,10 @@ function renderPlanner() {
     // Check if this day has any meals planned
     const dayPlan = plan[day] || { breakfast: [], lunch: [], dinner: [] };
     const hasMeals = MEALS.some(m => (dayPlan[m] || []).length > 0);
-    // Show meal dot if day has meals, otherwise show today dot if applicable
+    // Show meal dot if day has meals (today dot is handled by CSS ::before)
     let dotHtml = '';
     if (hasMeals) {
       dotHtml = '<span class="cal-strip-meals" aria-hidden="true"></span>';
-    } else if (isToday && !isSel) {
-      dotHtml = '<span class="cal-strip-dot" aria-hidden="true"></span>';
     }
     return `<button class="cal-strip-day${isSel ? ' selected' : ''}${isToday ? ' today' : ''}"
               data-idx="${i}" aria-label="${day} ${d.getDate()}" aria-pressed="${isSel}">
@@ -1074,19 +1234,22 @@ function renderPlanner() {
         ${recipeVisual(recipe, 'cal-card-emoji')}
         <div class="cal-card-info">
           <span class="cal-card-name">${escHtml(recipe.name)}</span>
-          <span class="cal-card-meta">${recipe.ingredients.length} ing</span>
         </div>
-        <button class="cal-recipe-remove" data-wk="${wk}" data-day="${escHtml(selDay)}"
-                data-meal="${meal}" data-rid="${recipeId}"
-                aria-label="Remove ${recipe.name}">${icon('x', 14)}</button>
-      </div>
-      <div class="cal-servings-row">
-        <label>Serves:</label>
-        <div class="cal-servings-ctrl">
+        <div class="cal-inline-servings">
           <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="-1" aria-label="Decrease servings">${icon('minus', 12)}</button>
           <span class="cal-srv-val">${servings}</span>
           <button class="cal-srv-btn" data-wk="${wk}" data-day="${escHtml(selDay)}" data-meal="${meal}" data-rid="${recipeId}" data-dir="1" aria-label="Increase servings">${icon('plus', 12)}</button>
         </div>
+        <div class="cal-recipe-actions">
+          <button class="cal-more-btn" data-rid="${recipeId}" aria-label="More options">${icon('more-vertical', 16)}</button>
+          <div class="cal-more-menu">
+            <button class="cal-more-option" data-action="view" data-rid="${recipeId}">${icon('utensils', 14)} View</button>
+            <button class="cal-more-option" data-action="edit" data-rid="${recipeId}">${icon('pencil', 14)} Edit</button>
+          </div>
+        </div>
+        <button class="cal-recipe-remove" data-wk="${wk}" data-day="${escHtml(selDay)}"
+                data-meal="${meal}" data-rid="${recipeId}"
+                aria-label="Remove ${recipe.name}">${icon('x', 14)}</button>
       </div>
     `).join('');
 
@@ -1178,7 +1341,7 @@ function renderPlanner() {
     detail.addEventListener('touchend', e => {
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
-      if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+      if (Math.abs(dx) < 30 || Math.abs(dy) > Math.abs(dx) * 1.5) return;
       const cur = getEffectiveSelIdx(nowDate);
       if (dx < 0) {
         // swipe left → next day
@@ -1234,6 +1397,32 @@ function renderPlanner() {
     });
   });
 
+  /* ── 3-dot menu ──── */
+  page.querySelectorAll('.cal-more-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const menu = btn.nextElementSibling;
+      // Close any other open menus first
+      page.querySelectorAll('.cal-more-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+      menu.classList.toggle('open');
+    });
+  });
+
+  page.querySelectorAll('.cal-more-option').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      page.querySelectorAll('.cal-more-menu.open').forEach(m => m.classList.remove('open'));
+      const rid = btn.dataset.rid;
+      if (btn.dataset.action === 'view') { detailRecipeId = rid; navigate('detail'); }
+      if (btn.dataset.action === 'edit') { detailRecipeId = rid; navigate('edit'); }
+    });
+  });
+
+  // Close menus when tapping elsewhere
+  page.addEventListener('click', () => {
+    page.querySelectorAll('.cal-more-menu.open').forEach(m => m.classList.remove('open'));
+  });
+
   /* ── Clear week ──── */
   document.getElementById('btn-clear-week').addEventListener('click', () => {
     if (!confirm('Clear all meals for this week?')) return;
@@ -1244,21 +1433,21 @@ function renderPlanner() {
 }
 
 /* ── Meal picker bottom sheet ────────────────────────────── */
-function openMealPicker(wk, day, meal) {
-  pickerCtx = { wk, day, meal };
-  const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
-  document.getElementById('meal-picker-title').textContent = `${day} · ${mealLabel}`;
-
-  const recipes = RecipeDB.all();
-  const list    = document.getElementById('meal-picker-list');
-  list.innerHTML = `
-    ${recipes.map(r => `
+function renderMealPickerList(filterText) {
+  const recipes = RecipeDB.search(filterText || '');
+  const list = document.getElementById('meal-picker-list');
+  if (recipes.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);font-weight:600;">No recipes found</div>`;
+    return;
+  }
+  list.innerHTML = recipes.map(r => {
+    const catLabel = r.category ? (RECIPE_CATEGORIES.find(c => c.value === r.category)?.label || '') : '';
+    return `
       <button class="meal-picker-item" data-id="${r.id}">
         ${recipeVisual(r, 'mpi-emoji')}
-        <span class="mpi-name">${escHtml(r.name)}</span>
-      </button>
-    `).join('')}
-  `;
+        <span class="mpi-name">${escHtml(r.name)}${catLabel ? `<span class="mpi-cat">${escHtml(catLabel)}</span>` : ''}</span>
+      </button>`;
+  }).join('');
 
   list.querySelectorAll('.meal-picker-item').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1267,11 +1456,34 @@ function openMealPicker(wk, day, meal) {
       renderPlanner();
     });
   });
+}
 
+function openMealPicker(wk, day, meal) {
+  pickerCtx = { wk, day, meal };
+  plannerSearchQuery = '';
+  const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
+  document.getElementById('meal-picker-title').textContent = `${day} · ${mealLabel}`;
+
+  // Ensure search input exists
+  let searchInput = document.getElementById('meal-picker-search');
+  if (!searchInput) {
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'picker-search-wrap';
+    searchWrap.innerHTML = `<input type="search" id="meal-picker-search" class="picker-search" placeholder="Search recipes…" aria-label="Search recipes">`;
+    const title = document.getElementById('meal-picker-title');
+    title.insertAdjacentElement('afterend', searchWrap);
+    searchInput = document.getElementById('meal-picker-search');
+  }
+  searchInput.value = '';
+  searchInput.oninput = () => renderMealPickerList(searchInput.value);
+
+  renderMealPickerList('');
   refreshIcons();
+
   const picker   = document.getElementById('meal-picker');
   const backdrop = document.getElementById('meal-picker-backdrop');
   picker.classList.add('open');
+  setTimeout(() => searchInput.focus(), 350);
   backdrop.addEventListener('click', closeMealPicker, { once: true });
 }
 
@@ -1652,6 +1864,20 @@ function scheduleShoppingReminder() {
   }
 }
 
+/* ── Shop add item bottom sheet ─────────────────────────── */
+function openShopAddPicker() {
+  const picker = document.getElementById('shop-add-picker');
+  const backdrop = document.getElementById('shop-add-backdrop');
+  picker.classList.add('open');
+  const nameInput = document.querySelector('#shop-add-picker #sap-name');
+  if (nameInput) setTimeout(() => nameInput.focus(), 350);
+  backdrop.addEventListener('click', closeShopAddPicker, { once: true });
+}
+
+function closeShopAddPicker() {
+  document.getElementById('shop-add-picker').classList.remove('open');
+}
+
 /* ── Boot ────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   seedIfEmpty();
@@ -1682,8 +1908,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => { hapticTap(); navigate(btn.dataset.page); });
   });
 
-  // Add recipe button in header
-  document.getElementById('btn-add-recipe').addEventListener('click', () => { hapticTap(); navigate('add'); });
+  // Add button in header – context-aware per page
+  document.getElementById('btn-add-recipe').addEventListener('click', () => {
+    hapticTap();
+    if (currentPage === 'shopping') { openShopAddPicker(); }
+    else { navigate('add'); }
+  });
 
   // Back button
   document.getElementById('back-btn').addEventListener('click', goBack);
@@ -1723,6 +1953,30 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   history.replaceState({ page: 'recipes' }, '', '');
   history.pushState(null, '', '');
+
+  // Wire up shop-add popup form
+  const sapForm = document.getElementById('sap-form');
+  if (sapForm) {
+    sapForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const name = document.getElementById('sap-name').value.trim();
+      if (!name) return;
+      const qty = document.getElementById('sap-qty').value.trim();
+      const unit = document.getElementById('sap-unit').value.trim();
+      const recurring = document.getElementById('sap-recurring').checked;
+      if (recurring) {
+        RecurringDB.add(name, qty, unit);
+        showToast('Recurring item added');
+      } else {
+        CustomItemsDB.add(name, qty, unit);
+        showToast('Item added');
+      }
+      sapForm.reset();
+      closeShopAddPicker();
+      if (currentPage === 'shopping') renderShopping();
+      updateShoppingBadge();
+    });
+  }
 
   // Register service worker (skip inside Capacitor – assets are bundled in the APK)
   if ('serviceWorker' in navigator && !window.Capacitor) {
