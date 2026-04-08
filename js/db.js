@@ -2,7 +2,7 @@
  * db.js – localStorage-backed data layer
  *
  * Schemas:
- *   Recipe  { id, name, emoji, photo, servings, ingredients:[{name,qty,unit}], steps:[string], createdAt }
+ *   Recipe  { id, name, emoji, photo, servings, prepTime, cookTime, ingredients:[{name,qty,unit,optional}], steps:[string], createdAt }
  *   ShopItem{ id, name, qty, unit, checked, source, recipeId }
  *   Plan    { [weekKey]: { [day]: { breakfast:[id], lunch:[id], dinner:[id] } } }
  *             weekKey = 'YYYY-MM-DD' of that week's Monday
@@ -236,6 +236,8 @@ const RecipeDB = {
     if (recipe.starred === undefined) recipe.starred = false;
     if (!Array.isArray(recipe.tags)) recipe.tags = [];
     if (recipe.category === undefined) recipe.category = '';
+    if (recipe.prepTime === undefined) recipe.prepTime = 0;
+    if (recipe.cookTime === undefined) recipe.cookTime = 0;
 
     if (idx >= 0) { list[idx] = recipe; }
     else { list.push(recipe); }
@@ -284,14 +286,14 @@ const RecipeDB = {
     return count;
   },
 
-  /** Return unique ingredients {name, unit} across all recipes (sorted by name).
-   *  Keeps the first unit encountered per ingredient name. */
+  /** Return unique ingredients {name, unit, qty, optional} across all recipes (sorted by name).
+   *  Keeps the first occurrence per ingredient name. */
   allIngredientsWithUnits() {
     const map = {};
     this.all().forEach(r => {
       r.ingredients.forEach(i => {
         const key = i.name.trim().toLowerCase();
-        if (key && !map[key]) map[key] = { name: i.name.trim(), unit: i.unit || '' };
+        if (key && !map[key]) map[key] = { name: i.name.trim(), unit: i.unit || '', qty: i.qty || '', optional: !!i.optional };
       });
     });
     return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
@@ -598,6 +600,8 @@ function seedIfEmpty() {
       name: 'Spaghetti Bolognese',
       emoji: '🍝',
       servings: 4,
+      prepTime: 10,
+      cookTime: 30,
       category: 'main',
       tags: ['pasta', 'italian'],
       ingredients: [
@@ -622,6 +626,8 @@ function seedIfEmpty() {
       name: 'Caesar Salad',
       emoji: '🥗',
       servings: 2,
+      prepTime: 10,
+      cookTime: 0,
       category: 'starter',
       tags: ['salad', 'quick'],
       ingredients: [
@@ -642,6 +648,8 @@ function seedIfEmpty() {
       name: 'Pancakes',
       emoji: '🥞',
       servings: 2,
+      prepTime: 5,
+      cookTime: 10,
       category: 'breakfast',
       tags: ['sweet', 'quick'],
       ingredients: [

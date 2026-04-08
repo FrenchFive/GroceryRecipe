@@ -492,8 +492,8 @@ img.emoji.recipe-photo {
 
 .ingredient-row {
   display: grid;
-  grid-template-columns: 1fr 60px 75px 32px;
-  gap: 6px;
+  grid-template-columns: 1fr 55px 65px 28px 28px;
+  gap: 5px;
   margin-bottom: 8px;
   align-items: center;
 }
@@ -556,8 +556,8 @@ img.emoji.recipe-photo {
 
 .ingredient-header {
   display: grid;
-  grid-template-columns: 1fr 60px 75px 32px;
-  gap: 6px;
+  grid-template-columns: 1fr 55px 65px 28px 28px;
+  gap: 5px;
   margin-bottom: 6px;
 }
 .ingredient-header span { font-size: .75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
@@ -754,7 +754,7 @@ img.emoji.recipe-photo {
   color: #fff;
   font-size: 1rem;
   cursor: pointer;
-  padding: 4px;
+  padding: 2px;
   line-height: 1;
   font-weight: 900;
   box-shadow: 2px 2px 0 var(--border);
@@ -762,6 +762,8 @@ img.emoji.recipe-photo {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 28px;
+  height: 28px;
 }
 .remove-btn:active {
   transform: translate(2px, 2px);
@@ -966,24 +968,30 @@ img.emoji.recipe-photo {
 }
 
 /* ── Optional ingredient styles ─────────────────────────── */
-.ingredient-row-wrap { margin-bottom: 8px; }
+.ingredient-row-wrap { margin-bottom: 4px; }
 .ingredient-row-wrap .ingredient-row { margin-bottom: 0; }
-.ing-optional-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: .72rem;
-  font-weight: 700;
+
+/* Pantry toggle button (inline in ingredient row) */
+.ing-pantry-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
   color: var(--text-muted);
   cursor: pointer;
-  margin-top: 2px;
-  padding-left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, color .15s;
+  flex-shrink: 0;
 }
-.ing-optional-label input[type=checkbox] {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--green);
-  cursor: pointer;
+.ing-pantry-btn:active { transform: scale(.92); }
+.ing-pantry-btn.active {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
 }
 .optional-badge {
   font-size: .65rem;
@@ -2091,6 +2099,105 @@ img.mpi-emoji {
 .detail-tags .recipe-tag-chip {
   font-size: .7rem;
   padding: 2px 8px;
+}
+
+/* ── Time display in detail view ─────────────────────────── */
+.detail-time-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.detail-time-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: .75rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.detail-time-total {
+  background: var(--green-bg);
+  color: var(--green);
+  border-color: var(--green);
+}
+
+/* ── Time chip in recipe list ────────────────────────────── */
+.recipe-time-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--green-bg);
+  color: var(--green);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: .6rem;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+/* ── Time inputs in recipe form ──────────────────────────── */
+.time-inputs-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.time-input-group {
+  flex: 1;
+}
+.time-input-group label {
+  display: block;
+  font-size: .72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.time-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.time-input-wrap input {
+  width: 100%;
+  padding: 8px 6px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-family: inherit;
+  font-size: .9rem;
+  outline: none;
+  background: var(--card-bg);
+  text-align: center;
+}
+.time-input-wrap input:focus {
+  border-color: var(--green);
+}
+.time-input-suffix {
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.time-total {
+  text-align: center;
+}
+.time-total-value {
+  display: block;
+  padding: 8px 6px;
+  font-size: .9rem;
+  font-weight: 800;
+  color: var(--green);
+  background: var(--green-bg);
+  border: 2px solid var(--green);
+  border-radius: var(--radius);
+  text-align: center;
 }
 
 /* ── Meal picker search ────────────────────────────────── */
