@@ -36,7 +36,11 @@ const ICON_SVG = {
   'trash-2': '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   'user': '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   'utensils': '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
-  'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+  'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'house': '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  'flame': '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  'timer': '<line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/>'
 };
 function icon(name, size = 20, cls = '') {
   const inner = ICON_SVG[name] || '';
@@ -55,6 +59,7 @@ let shoppingView         = 'current'; // 'current' | 'next'
 let pickerCtx            = null;   // { wk, day, meal } for the meal picker
 let recipeSortMode       = 'default';  // 'default' | 'alpha' | 'newest' | 'oldest' | 'most-planned' | 'least-planned'
 let recipeCategoryFilter = '';         // '' = all, or a category value
+let recipeTimeFilter     = '';         // '' = all, 'quick' = <15m, 'medium' = <45m, 'long' = >=45m
 let plannerSearchQuery   = '';         // search filter in planner meal picker
 let plannerPickerCat     = '';         // category filter in planner meal picker
 
@@ -232,6 +237,16 @@ function renderRecipes(filter = '') {
   if (recipeCategoryFilter) {
     list = list.filter(r => (r.category || '') === recipeCategoryFilter);
   }
+  // Apply time filter
+  if (recipeTimeFilter) {
+    list = list.filter(r => {
+      const total = (r.prepTime || 0) + (r.cookTime || 0);
+      if (recipeTimeFilter === 'quick')  return total > 0 && total <= 15;
+      if (recipeTimeFilter === 'medium') return total > 15 && total <= 45;
+      if (recipeTimeFilter === 'long')   return total > 45;
+      return true;
+    });
+  }
   list = sortRecipes(list);
 
   const container = document.getElementById('recipe-list');
@@ -246,9 +261,16 @@ function renderRecipes(filter = '') {
     { value: 'most-planned',  label: 'Most Planned' },
     { value: 'least-planned', label: 'Least Planned' },
   ];
+  const timeOptions = [
+    { value: '',       label: 'All' },
+    { value: 'quick',  label: 'Quick (≤15m)' },
+    { value: 'medium', label: 'Medium (≤45m)' },
+    { value: 'long',   label: 'Long (>45m)' },
+  ];
 
   const sortLabel = sortOptions.find(o => o.value === recipeSortMode)?.label || 'Default';
   const catLabel  = recipeCategoryFilter ? (categories.find(c => c.value === recipeCategoryFilter)?.label || 'All') : 'All';
+  const timeLabel = recipeTimeFilter ? (timeOptions.find(o => o.value === recipeTimeFilter)?.label || 'All') : 'All';
 
   const controlsHtml = `<div class="recipe-controls">
     <div class="recipe-ctrl-group">
@@ -259,18 +281,23 @@ function renderRecipes(filter = '') {
       <label>${icon('filter', 14)}</label>
       <button type="button" id="recipe-cat-filter" class="recipe-ctrl-select">${escHtml(catLabel)}</button>
     </div>
+    <div class="recipe-ctrl-group">
+      <label>${icon('timer', 14)}</label>
+      <button type="button" id="recipe-time-filter" class="recipe-ctrl-select">${escHtml(timeLabel)}</button>
+    </div>
   </div>`;
 
   if (list.length === 0) {
     container.innerHTML = controlsHtml + `
       <div class="empty-state">
         <div class="empty-icon">${icon('cooking-pot', 48)}</div>
-        <p>${filter || recipeCategoryFilter ? 'No recipes match your search.' : 'No recipes yet. Tap + to add one!'}</p>
+        <p>${filter || recipeCategoryFilter || recipeTimeFilter ? 'No recipes match your search.' : 'No recipes yet. Tap + to add one!'}</p>
       </div>`;
   } else {
     container.innerHTML = controlsHtml + list.map(r => {
       const catLabel = r.category ? (RECIPE_CATEGORIES.find(c => c.value === r.category)?.label || '') : '';
-      const tagsHtml = (r.tags || []).map(t => `<span class="recipe-tag-chip">${escHtml(t)}</span>`).join('');
+      const totalTime = (r.prepTime || 0) + (r.cookTime || 0);
+      const timeHtml = totalTime > 0 ? `<span class="recipe-time-chip">${icon('timer', 11)} ${totalTime}m</span>` : '';
       const metaParts = [`${r.ingredients.length} ing`, `serves ${r.servings}`];
       if (catLabel) metaParts.push(catLabel);
       return `
@@ -279,7 +306,7 @@ function renderRecipes(filter = '') {
           ${recipeVisual(r, 'recipe-emoji')}
           <div class="recipe-info">
             <h3>${escHtml(r.name)}</h3>
-            <p>${metaParts.join(' · ')}${tagsHtml ? ' ' + tagsHtml : ''}</p>
+            <p>${metaParts.join(' · ')}${timeHtml ? ' ' + timeHtml : ''}</p>
           </div>
           <span class="recipe-arrow">${icon('chevron-right', 18)}</span>
         </div>`;
@@ -289,6 +316,7 @@ function renderRecipes(filter = '') {
   // Wire sort & filter (custom option picker)
   const sortBtn = document.getElementById('recipe-sort');
   const catBtn  = document.getElementById('recipe-cat-filter');
+  const timeBtn = document.getElementById('recipe-time-filter');
   if (sortBtn) sortBtn.addEventListener('click', () => {
     openOptionPicker('Sort By', sortOptions, recipeSortMode, val => {
       recipeSortMode = val;
@@ -299,6 +327,12 @@ function renderRecipes(filter = '') {
     const catOpts = [{ value: '', label: 'All' }, ...categories.filter(c => c.value)];
     openOptionPicker('Category', catOpts, recipeCategoryFilter, val => {
       recipeCategoryFilter = val;
+      renderRecipes(document.getElementById('recipe-search').value);
+    });
+  });
+  if (timeBtn) timeBtn.addEventListener('click', () => {
+    openOptionPicker('Time', timeOptions, recipeTimeFilter, val => {
+      recipeTimeFilter = val;
       renderRecipes(document.getElementById('recipe-search').value);
     });
   });
@@ -337,6 +371,11 @@ function renderDetail(id) {
       ${r.photo ? `<img class="emoji recipe-photo" src="${r.photo}" alt="">` : `<div class="emoji">${r.emoji || '🍽'}</div>`}
       <h2>${escHtml(r.name)}</h2>
       <p>Base: ${r.servings} serving${r.servings > 1 ? 's' : ''}${r.category ? ' · ' + escHtml(RECIPE_CATEGORIES.find(c => c.value === r.category)?.label || r.category) : ''}</p>
+      ${(r.prepTime || r.cookTime) ? `<div class="detail-time-row">
+        ${r.prepTime ? `<span class="detail-time-chip">${icon('clock', 13)} Prep ${r.prepTime}m</span>` : ''}
+        ${r.cookTime ? `<span class="detail-time-chip">${icon('flame', 13)} Cook ${r.cookTime}m</span>` : ''}
+        <span class="detail-time-chip detail-time-total">${icon('timer', 13)} Total ${(r.prepTime || 0) + (r.cookTime || 0)}m</span>
+      </div>` : ''}
       ${(r.tags || []).length ? `<div class="detail-tags">${r.tags.map(t => `<span class="recipe-tag-chip">${escHtml(t)}</span>`).join('')}</div>` : ''}
     </div>
 
@@ -403,7 +442,9 @@ function renderDetail(id) {
     hapticAction();
     const ingText = r.ingredients.map(i => `  ${i.qty} ${i.unit} ${i.name}`).join('\n');
     const stepsText = r.steps && r.steps.length ? '\n\nSteps:\n' + r.steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n') : '';
-    const text = `${r.name}\nServes ${r.servings}\n\nIngredients:\n${ingText}${stepsText}`;
+    const totalTime = (r.prepTime || 0) + (r.cookTime || 0);
+    const timeText = totalTime > 0 ? `\n${r.prepTime ? 'Prep: ' + r.prepTime + 'min' : ''}${r.prepTime && r.cookTime ? ' · ' : ''}${r.cookTime ? 'Cook: ' + r.cookTime + 'min' : ''} · Total: ${totalTime}min` : '';
+    const text = `${r.name}\nServes ${r.servings}${timeText}\n\nIngredients:\n${ingText}${stepsText}`;
     const capShare = getCapPlugin('Share');
     if (capShare) {
       capShare.share({ title: r.name, text, dialogTitle: 'Share recipe' }).catch(() => {});
@@ -468,6 +509,29 @@ function renderAddForm(editId) {
           </select>
         </div>
         <div class="form-group">
+          <label>Time</label>
+          <div class="time-inputs-row">
+            <div class="time-input-group">
+              <label for="f-prep-time">Prep</label>
+              <div class="time-input-wrap">
+                <input type="number" id="f-prep-time" min="0" value="${r ? (r.prepTime || 0) : 0}" placeholder="0">
+                <span class="time-input-suffix">min</span>
+              </div>
+            </div>
+            <div class="time-input-group">
+              <label for="f-cook-time">Cook</label>
+              <div class="time-input-wrap">
+                <input type="number" id="f-cook-time" min="0" value="${r ? (r.cookTime || 0) : 0}" placeholder="0">
+                <span class="time-input-suffix">min</span>
+              </div>
+            </div>
+            <div class="time-input-group time-total">
+              <label>Total</label>
+              <span class="time-total-value" id="f-total-time">${r ? ((r.prepTime || 0) + (r.cookTime || 0)) : 0} min</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
           <label>Tags</label>
           <div class="tags-input-wrap">
             <div class="tags-chips" id="f-tags-chips">
@@ -485,6 +549,7 @@ function renderAddForm(editId) {
           <span>Name</span>
           <span>Qty</span>
           <span>Unit</span>
+          <span></span>
           <span></span>
         </div>
         <div id="ing-rows"></div>
@@ -584,14 +649,22 @@ function renderAddForm(editId) {
       matches.forEach(match => {
         const item = document.createElement('div');
         item.className = 'ing-ac-item';
-        item.innerHTML = `<span>${escHtml(match.name)}</span><span class="ing-ac-unit">${escHtml(match.unit || 'unit')}</span>`;
+        const qtyLabel = match.qty ? `${escHtml(match.qty)} ${escHtml(match.unit || 'unit')}` : escHtml(match.unit || 'unit');
+        item.innerHTML = `<span>${escHtml(match.name)}</span><span class="ing-ac-unit">${qtyLabel}</span>`;
         item.addEventListener('mousedown', e => {
           e.preventDefault();
           nameInput.value = match.name;
           const hiddenUnit = row.querySelector('.ing-unit');
           const unitBtn = row.querySelector('.ing-unit-btn');
+          const qtyInput = row.querySelector('.ing-qty');
+          const pantryBtn = row.querySelector('.ing-pantry-btn');
           if (hiddenUnit) hiddenUnit.value = match.unit || '';
           if (unitBtn) unitBtn.textContent = UNIT_OPTIONS.find(u => u.value === (match.unit || ''))?.label || match.unit || 'unit';
+          if (qtyInput && match.qty) qtyInput.value = match.qty;
+          if (pantryBtn) {
+            pantryBtn.classList.toggle('active', !!match.optional);
+            pantryBtn.dataset.active = match.optional ? '1' : '0';
+          }
           dropdown.classList.remove('open');
         });
         dropdown.appendChild(item);
@@ -622,17 +695,23 @@ function renderAddForm(editId) {
         <input type="text" class="ing-qty"  placeholder="200"   value="${escHtml(qty)}">
         <input type="hidden" class="ing-unit" value="${escHtml(unit)}">
         <button type="button" class="ing-unit-btn" aria-label="Select unit">${escHtml(unitLabel)}</button>
+        <button type="button" class="ing-pantry-btn${optional ? ' active' : ''}" data-active="${optional ? '1' : '0'}" aria-label="Toggle pantry" title="Pantry item">${icon('house', 14)}</button>
         <button type="button" class="remove-btn" aria-label="Remove">${icon('x', 16)}</button>
       </div>
-      <label class="ing-optional-label">
-        <input type="checkbox" class="ing-optional" ${optional ? 'checked' : ''}> Optional (pantry item)
-      </label>
     `;
 
     // Wire custom unit picker button
     const hiddenInput = div.querySelector('.ing-unit');
     const unitBtn = div.querySelector('.ing-unit-btn');
     unitBtn.addEventListener('click', () => openUnitPicker(hiddenInput, unitBtn));
+
+    // Wire pantry toggle
+    const pantryBtn = div.querySelector('.ing-pantry-btn');
+    pantryBtn.addEventListener('click', () => {
+      const isActive = pantryBtn.dataset.active === '1';
+      pantryBtn.dataset.active = isActive ? '0' : '1';
+      pantryBtn.classList.toggle('active', !isActive);
+    });
 
     div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
 
@@ -726,6 +805,17 @@ function renderAddForm(editId) {
     clearBtn.style.display = 'none';
   });
 
+  // Time inputs – auto-compute total
+  const prepTimeInput = document.getElementById('f-prep-time');
+  const cookTimeInput = document.getElementById('f-cook-time');
+  const totalTimeEl   = document.getElementById('f-total-time');
+  function updateTotalTime() {
+    const total = (parseInt(prepTimeInput.value) || 0) + (parseInt(cookTimeInput.value) || 0);
+    totalTimeEl.textContent = total + ' min';
+  }
+  prepTimeInput.addEventListener('input', updateTotalTime);
+  cookTimeInput.addEventListener('input', updateTotalTime);
+
   // Tags input logic
   const pendingTags = r && Array.isArray(r.tags) ? [...r.tags] : [];
   const tagsChips = document.getElementById('f-tags-chips');
@@ -772,7 +862,7 @@ function renderAddForm(editId) {
         name: wrap.querySelector('.ing-name').value.trim(),
         qty:  wrap.querySelector('.ing-qty').value.trim(),
         unit: wrap.querySelector('.ing-unit').value.trim(),
-        optional: wrap.querySelector('.ing-optional')?.checked || false
+        optional: wrap.querySelector('.ing-pantry-btn')?.dataset.active === '1'
       }))
       .filter(i => i.name);
 
@@ -787,6 +877,8 @@ function renderAddForm(editId) {
       emoji:     usePhoto ? '' : (document.getElementById('f-emoji').value.trim() || '🍽'),
       photo:     usePhoto ? pendingPhoto : null,
       servings:  Math.max(1, parseInt(document.getElementById('f-servings').value) || 1),
+      prepTime:  Math.max(0, parseInt(document.getElementById('f-prep-time').value) || 0),
+      cookTime:  Math.max(0, parseInt(document.getElementById('f-cook-time').value) || 0),
       category:  document.getElementById('f-category').value,
       tags:      [...pendingTags],
       ingredients,
